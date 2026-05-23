@@ -12,14 +12,22 @@ let pollTimer = null;
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log('[BandeJA] Extensión instalada. Iniciando polling.');
+  chrome.alarms.create('heartbeat', { periodInMinutes: 1 });
   startPolling();
 });
 
 chrome.runtime.onStartup.addListener(() => {
+  chrome.alarms.create('heartbeat', { periodInMinutes: 1 });
   startPolling();
 });
 
+// chrome.alarms despierta el service worker aunque Chrome lo haya suspendido
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === 'heartbeat') startPolling();
+});
+
 // Reanudar polling si el service worker se reactiva
+chrome.alarms.create('heartbeat', { periodInMinutes: 1 });
 startPolling();
 
 // ── Polling al servidor Python ───────────────────────────────────────────────
