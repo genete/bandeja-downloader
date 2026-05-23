@@ -22,9 +22,13 @@ $xml.LoadXml('<toast duration="short"><visual><binding template="ToastText02">
 $toast = [Windows.UI.Notifications.ToastNotification,Windows.UI.Notifications,ContentType=WindowsRuntime]::new($xml)
 [Windows.UI.Notifications.ToastNotificationManager,Windows.UI.Notifications,ContentType=WindowsRuntime]::CreateToastNotifier('BandeJA Downloader').Show($toast)
 """
+    # CREATE_NO_WINDOW evita que PowerShell robe el foco y oculte el terminal
+    CREATE_NO_WINDOW = 0x08000000
     subprocess.run(
-        ["powershell", "-WindowStyle", "Hidden", "-NonInteractive", "-Command", script],
-        capture_output=True,
+        ["powershell", "-NonInteractive", "-Command", script],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        creationflags=CREATE_NO_WINDOW,
     )
 
 
