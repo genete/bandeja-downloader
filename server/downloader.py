@@ -22,10 +22,11 @@ logger.propagate = False
 
 
 class Estado(str, Enum):
-    PENDIENTE  = "pendiente"
-    EN_CURSO   = "en_curso"
-    OK         = "ok"
-    ERROR      = "error"
+    PENDIENTE      = "pendiente"
+    EN_CURSO       = "en_curso"
+    OK             = "ok"
+    ERROR          = "error"
+    SIN_DOCUMENTOS = "sin_documentos"
 
 
 @dataclass

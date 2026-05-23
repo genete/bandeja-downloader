@@ -19,22 +19,24 @@ from textual.containers import Vertical
 
 from .api import app as fastapi_app, inyectar_cola, set_pausado
 from .config import PENDING_CSV, SERVER_HOST, SERVER_PORT
-from .downloader import Cola, Estado
+from .downloader import Cola, Estado, logger as dl_logger
 
 # ── Colores por estado ───────────────────────────────────────────────────────
 
 COLORES = {
-    Estado.PENDIENTE: "white",
-    Estado.EN_CURSO:  "yellow",
-    Estado.OK:        "green",
-    Estado.ERROR:     "red",
+    Estado.PENDIENTE:      "white",
+    Estado.EN_CURSO:       "yellow",
+    Estado.OK:             "green",
+    Estado.ERROR:          "red",
+    Estado.SIN_DOCUMENTOS: "cyan",
 }
 
 ICONOS = {
-    Estado.PENDIENTE: "⏳",
-    Estado.EN_CURSO:  "🔄",
-    Estado.OK:        "✅",
-    Estado.ERROR:     "❌",
+    Estado.PENDIENTE:      "⏳",
+    Estado.EN_CURSO:       "🔄",
+    Estado.OK:             "✅",
+    Estado.ERROR:          "❌",
+    Estado.SIN_DOCUMENTOS: "📭",
 }
 
 
@@ -89,6 +91,10 @@ class BandeJAApp(App):
         yield Footer()
 
     def on_mount(self) -> None:
+        dl_logger.info("=" * 60)
+        dl_logger.info("NUEVA SESIÓN")
+        dl_logger.info("=" * 60)
+
         # Configurar columnas
         tabla = self.query_one("#tabla", DataTable)
         tabla.add_columns("", "Código", "Estado", "Detalle", "Hora")

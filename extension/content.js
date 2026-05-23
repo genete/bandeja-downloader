@@ -186,10 +186,7 @@ async function abrirModalInfo() {
     } catch { /* seguimos */ }
   }
 
-  throw new Error(
-    'No se pudo abrir el modal de información. ' +
-    'Comprueba que la fila visible es la comunicación correcta.'
-  );
+  throw new Error('MODAL_NO_DISPONIBLE');
 }
 
 // ── Paso 3: Descargar ZIP y esperar resultado ────────────────────────────────
@@ -198,39 +195,36 @@ async function descargarYEsperar() {
   const btnDescargar = document.querySelector('#descargarZip');
   const spinnerEl    = document.querySelector('#descargandoZip');
 
-  if (!btnDescargar) throw new Error('Botón "Descargar documentos" no encontrado en el modal');
-
-  // Lanzar el observador de toast de error ANTES de pulsar
-  const toastPromise = watchForErrorToast(TIMEOUT_DESCARGA_MS);
+  if (!btnDescargar) throw new Error('Botón #descargarZip no encontrado en el modal');
 
   // Pulsar descarga vía bridge (mundo MAIN) para evitar la CSP de BandeJA
   window.postMessage({ bandeja: true, action: 'descargarZip' }, '*');
 
-  // Esperar a que el spinner de "Descargando..." aparezca (señal de que la petición salió)
-  try {
-    await waitFor(() => {
-      return spinnerEl && spinnerEl.style.display !== 'none';
-    }, 8_000);
-  } catch {
-    // Puede que el spinner ya apareció y desapareció muy rápido → seguimos
-  }
-
-  // Notificar al background que la descarga fue iniciada
+  // Notificar al background que la descarga fue iniciada (para su fallback de timeout)
   chrome.runtime.sendMessage({ type: 'DOWNLOAD_STARTED' });
 
-  // Esperar resultado: botón vuelve a aparecer (éxito) vs toast de error
-  const botonVuelvePromise = waitFor(() => {
-    return spinnerEl &&
-      spinnerEl.style.display === 'none' &&
-      btnDescargar.style.display !== 'none';
-  }, TIMEOUT_DESCARGA_MS);
+  // Esperar el spinner como confirmación de que la petición salió
+  try {
+    await waitFor(() => spinnerEl && spinnerEl.style.display !== 'none', 8_000);
+  } catch { /* spinner puede aparecer y desaparecer muy rápido */ }
 
-  const resultado = await Promise.race([
-    toastPromise.then(r   => ({ tipo: 'toast',    ...r })),
-    botonVuelvePromise.then(() => ({ tipo: 'completado' })),
-  ]);
+  // Dos señales en carrera: toast de error vs botón reapareciendo
+  // Si ninguna llega en TIMEOUT_DESCARGA_MS → 'pendiente' (background.js detecta éxito via chrome.downloads)
+  return new Promise((resolve) => {
+    let resuelto = false;
+    const resolver = (valor) => { if (!resuelto) { resuelto = true; resolve(valor); } };
 
-  return resultado;
+    watchForErrorToast(TIMEOUT_DESCARGA_MS).then(r => {
+      if (r.error) resolver({ tipo: 'error', razon: r.texto });
+      else         resolver({ tipo: 'pendiente' }); // timeout sin error
+    });
+
+    waitFor(() =>
+      spinnerEl && spinnerEl.style.display === 'none' && btnDescargar.style.display !== 'none',
+      TIMEOUT_DESCARGA_MS
+    ).then(() => resolver({ tipo: 'completado' }))
+     .catch(() => { /* ignorado: ya resuelto por otra vía */ });
+  });
 }
 
 // ── Proceso completo para un código ─────────────────────────────────────────
@@ -247,20 +241,21 @@ async function procesarCodigo(codigo) {
     // 3. Descargar y esperar resultado
     const resultado = await descargarYEsperar();
 
-    if (resultado.tipo === 'toast' && resultado.error) {
-      chrome.runtime.sendMessage({
-        type: 'DOWNLOAD_ERROR',
-        reason: resultado.texto || 'Toast de error en BandeJA'
-      });
+    if (resultado.tipo === 'error') {
+      chrome.runtime.sendMessage({ type: 'DOWNLOAD_ERROR', reason: resultado.razon });
     } else if (resultado.tipo === 'completado') {
+      // Éxito rápido detectado por DOM — background.js también lo confirmará via onChanged
       chrome.runtime.sendMessage({ type: 'DOWNLOAD_SUCCESS' });
-    } else {
-      chrome.runtime.sendMessage({ type: 'DOWNLOAD_ERROR', reason: 'Resultado inesperado' });
     }
+    // tipo === 'pendiente': background.js gestiona el resultado via chrome.downloads.onChanged
 
   } catch (e) {
     console.error('[BandeJA] Error procesando', codigo, ':', e.message);
-    chrome.runtime.sendMessage({ type: 'DOWNLOAD_ERROR', reason: e.message });
+    if (e.message === 'MODAL_NO_DISPONIBLE') {
+      chrome.runtime.sendMessage({ type: 'SIN_DOCUMENTOS' });
+    } else {
+      chrome.runtime.sendMessage({ type: 'DOWNLOAD_ERROR', reason: e.message });
+    }
   } finally {
     // Cerrar modal si sigue abierto
     document.querySelector('#cerrarModalInfo')?.click();

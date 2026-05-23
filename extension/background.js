@@ -63,6 +63,14 @@ async function dispatchToContentScript(codigo) {
 
   const tabId = tabs[0].id;
 
+  // Fallback: si en 5 minutos el trabajo no se resolvió, lo marcamos como error
+  activeJob.timeoutId = setTimeout(() => {
+    if (activeJob?.codigo === codigo) {
+      console.warn('[BandeJA] Timeout global para', codigo);
+      finishJob('error', 'Timeout global: descarga no completada en 5 minutos');
+    }
+  }, 5 * 60 * 1000);
+
   try {
     await chrome.tabs.sendMessage(tabId, { type: 'PROCESS_CODE', codigo });
   } catch (e) {
@@ -95,12 +103,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       break;
 
     case 'DOWNLOAD_SUCCESS':
-      // El botón volvió a aparecer + descarga completada por chrome.downloads
+      // Éxito rápido detectado por DOM — posible que onChanged llegue después (no-op)
       finishJob('ok', msg.filename || '');
       break;
 
     case 'DOWNLOAD_ERROR':
       finishJob('error', msg.reason || 'Error desconocido');
+      break;
+
+    case 'SIN_DOCUMENTOS':
+      finishJob('sin_documentos', 'Sin documentos adjuntos');
       break;
   }
 });
@@ -137,6 +149,7 @@ function finishJob(status, detail) {
   if (!activeJob) return;
   const codigo   = activeJob.codigo;
   const filename = activeJob.filename || '';
+  if (activeJob.timeoutId) clearTimeout(activeJob.timeoutId);
   activeJob = null;
   reportResult(codigo, status, detail, filename);
 }

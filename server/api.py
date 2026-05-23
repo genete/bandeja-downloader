@@ -77,7 +77,8 @@ async def post_result(payload: ResultadoPayload):
     """La extensión reporta el resultado de un trabajo."""
     if not _cola:
         return {"ok": False, "error": "Cola no inicializada"}
-    estado = Estado.OK if payload.status == "ok" else Estado.ERROR
+    _map = {"ok": Estado.OK, "sin_documentos": Estado.SIN_DOCUMENTOS}
+    estado = _map.get(payload.status, Estado.ERROR)
     _cola.completar(payload.codigo, estado, payload.detail, payload.zip_filename)
     return {"ok": True}
 
