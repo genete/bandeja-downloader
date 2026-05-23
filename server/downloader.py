@@ -18,8 +18,10 @@ from typing import Optional
 # Patrón de código BandeJA: EXT/2026/0000000003004075
 _CODIGO_RE = re.compile(r'^(EXT|INT)/\d{4}/\d+$')
 
-# Log en la raíz del proyecto (D:/BANDEJADL/bandeja_downloader.log)
-_LOG_PATH = Path(__file__).parent.parent / "bandeja_downloader.log"
+from .config import BASE_DIR
+
+# Log junto al ejecutable (o en la raíz del proyecto en desarrollo)
+_LOG_PATH = BASE_DIR / "bandeja_downloader.log"
 _handler = logging.FileHandler(_LOG_PATH, encoding="utf-8")
 _handler.setFormatter(logging.Formatter("%(asctime)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
 logger = logging.getLogger("bandeja")

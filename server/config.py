@@ -1,7 +1,12 @@
+import sys
 from pathlib import Path
 
-# Raíz del proyecto
-BASE_DIR = Path(__file__).parent.parent
+# Raíz del proyecto — cuando corre como .exe (PyInstaller frozen) apunta
+# al directorio del ejecutable; en desarrollo apunta a la raíz del repo.
+if getattr(sys, 'frozen', False):
+    BASE_DIR = Path(sys.executable).parent
+else:
+    BASE_DIR = Path(__file__).parent.parent
 
 # Directorios
 DOWNLOADS_DIR = BASE_DIR / "downloads"
