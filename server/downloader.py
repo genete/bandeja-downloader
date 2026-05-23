@@ -42,12 +42,13 @@ _TIMEOUT_EN_CURSO_SEG = 2 * 60  # 2 minutos
 
 @dataclass
 class Trabajo:
-    codigo:       str
-    estado:       Estado    = Estado.PENDIENTE
-    detalle:      str       = ""
-    zip_filename: str       = ""
-    timestamp:    Optional[datetime] = None
-    started_at:   Optional[datetime] = None  # momento en que pasó a EN_CURSO
+    codigo:         str
+    estado:         Estado    = Estado.PENDIENTE
+    detalle:        str       = ""
+    zip_filename:   str       = ""
+    timestamp:      Optional[datetime] = None
+    started_at:     Optional[datetime] = None  # momento en que pasó a EN_CURSO
+    fila_original:  list      = field(default_factory=list)  # fila completa del CSV
 
 
 class Cola:
@@ -55,6 +56,7 @@ class Cola:
 
     def __init__(self) -> None:
         self.trabajos: list[Trabajo] = []
+        self.cabecera: list[str]     = []  # fila de cabecera del CSV original
 
     # ── Carga ────────────────────────────────────────────────────────────────
 
@@ -76,24 +78,26 @@ class Cola:
 
     def _cargar_reader(self, reader) -> int:
         """
-        Extrae códigos de un csv.reader.
+        Extrae códigos de un csv.reader guardando la fila completa para exportación.
         Detecta automáticamente el formato:
           - Exportación BandeJA: 7 columnas, código en col 1
           - Simple: una columna con el código directamente
         """
         codigos_existentes = {t.codigo for t in self.trabajos}
         nuevos   = 0
-        col      = None   # índice de columna del código (se detecta en la primera fila válida)
+        col      = None   # índice de columna del código
 
         for fila in reader:
             if not fila:
                 continue
 
-            # Detectar columna en la primera fila con datos reales
+            # Primera fila: detectar columna y si es cabecera guardarla
             if col is None:
                 col = self._detectar_columna(fila)
-                # Si la fila detectada es cabecera (no es un código), saltarla
                 if not _CODIGO_RE.match(fila[col].strip()):
+                    # Es cabecera — guardarla solo si aún no hay una
+                    if not self.cabecera:
+                        self.cabecera = list(fila)
                     continue
 
             if col >= len(fila):
@@ -101,7 +105,7 @@ class Cola:
 
             codigo = fila[col].strip()
             if _CODIGO_RE.match(codigo) and codigo not in codigos_existentes:
-                self.trabajos.append(Trabajo(codigo=codigo))
+                self.trabajos.append(Trabajo(codigo=codigo, fila_original=list(fila)))
                 codigos_existentes.add(codigo)
                 nuevos += 1
 
@@ -195,8 +199,26 @@ class Cola:
         # Vaciar la cola tras 10s para que la TUI muestre el estado final brevemente
         threading.Timer(10, self._vaciar).start()
 
+    def exportar_csv(self) -> str:
+        """Devuelve el CSV original con una columna 'Resultado' añadida al final."""
+        out = io.StringIO()
+        writer = csv.writer(out)
+
+        # Cabecera
+        if self.cabecera:
+            writer.writerow(self.cabecera + ["Resultado", "Fichero ZIP"])
+        else:
+            writer.writerow(["Código", "Resultado", "Fichero ZIP"])
+
+        for t in self.trabajos:
+            fila = t.fila_original if t.fila_original else [t.codigo]
+            writer.writerow(fila + [t.estado.value, t.zip_filename])
+
+        return out.getvalue()
+
     def _vaciar(self) -> None:
         self.trabajos.clear()
+        self.cabecera.clear()
         logger.info("Cola vaciada — lista para nuevo CSV")
 
     def _resetear_atascados(self) -> None:

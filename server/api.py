@@ -7,6 +7,7 @@ from typing import Optional
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from .downloader import Cola, Estado
@@ -89,6 +90,19 @@ async def load_csv(request: Request):
         return {"ok": False, "error": "No se pudo decodificar el CSV"}
     nuevos = _cola.cargar_texto_csv(texto)
     return {"ok": True, "nuevos": nuevos}
+
+
+@app.get("/api/export-csv")
+async def export_csv():
+    """Devuelve el CSV con los resultados de la cola actual."""
+    if not _cola:
+        return Response(content="Cola no inicializada", status_code=503)
+    contenido = _cola.exportar_csv()
+    return Response(
+        content=contenido.encode("utf-8-sig"),  # BOM para que Excel lo abra bien
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=resultados_bandeja.csv"},
+    )
 
 
 @app.post("/api/result")

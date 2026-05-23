@@ -66,3 +66,24 @@ inputCsv.addEventListener('change', async () => {
   // Limpiar para permitir seleccionar el mismo fichero otra vez
   inputCsv.value = '';
 });
+
+// ── Exportar resultados ──────────────────────────────────────────────────────
+
+document.getElementById('btn-export').addEventListener('click', async () => {
+  try {
+    const res = await fetch(`${SERVER_URL}/api/export-csv`, {
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!res.ok) throw new Error();
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'resultados_bandeja.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch {
+    feedback.textContent = '✗ No se pudo exportar';
+    feedback.style.color = '#c0392b';
+  }
+});
