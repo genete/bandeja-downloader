@@ -61,11 +61,26 @@ async function dispatchToContentScript(codigo) {
     return;
   }
 
+  const tabId = tabs[0].id;
+
   try {
-    await chrome.tabs.sendMessage(tabs[0].id, { type: 'PROCESS_CODE', codigo });
+    await chrome.tabs.sendMessage(tabId, { type: 'PROCESS_CODE', codigo });
   } catch (e) {
-    await reportResult(codigo, 'error', 'No se pudo contactar con el content script: ' + e.message);
-    activeJob = null;
+    // El content script no está cargado (pestaña abierta antes de instalar la extensión)
+    // → inyectarlo programáticamente y reintentar
+    console.warn('[BandeJA] Content script no disponible, inyectando…');
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        files: ['content.js']
+      });
+      // Pequeña pausa para que el script se inicialice
+      await new Promise(r => setTimeout(r, 500));
+      await chrome.tabs.sendMessage(tabId, { type: 'PROCESS_CODE', codigo });
+    } catch (e2) {
+      await reportResult(codigo, 'error', 'No se pudo inyectar content script: ' + e2.message);
+      activeJob = null;
+    }
   }
 }
 
