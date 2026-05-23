@@ -1,0 +1,21 @@
+# Descargas (no versionar el contenido descargado)
+downloads/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.env
+
+# Datos locales sensibles
+data/pending.csv
+
+# Editor
+.vscode/
+.idea/
+*.swp
