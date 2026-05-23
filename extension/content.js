@@ -9,21 +9,31 @@ const TIMEOUT_DESCARGA_MS = 120_000;  // espera máx para que termine el ZIP (2 
 
 function waitFor(conditionFn, timeoutMs) {
   return new Promise((resolve, reject) => {
-    const start = Date.now();
-    const check = setInterval(() => {
-      try {
-        if (conditionFn()) {
-          clearInterval(check);
-          resolve(true);
-        } else if (Date.now() - start > timeoutMs) {
-          clearInterval(check);
-          reject(new Error(`Timeout (${timeoutMs}ms) esperando condición`));
-        }
-      } catch (e) {
-        clearInterval(check);
-        reject(e);
-      }
-    }, 300);
+    // Comprobar de inmediato antes de registrar el observer
+    try { if (conditionFn()) { resolve(true); return; } } catch (e) { reject(e); return; }
+
+    let done = false;
+    const finish = (ok, err) => {
+      if (done) return;
+      done = true;
+      observer.disconnect();
+      clearTimeout(timer);
+      ok ? resolve(true) : reject(err);
+    };
+
+    // MutationObserver: reacciona a cambios DOM sin throttling de Chrome en segundo plano
+    const observer = new MutationObserver(() => {
+      try { if (conditionFn()) finish(true); } catch (e) { finish(false, e); }
+    });
+    observer.observe(document.body, {
+      childList: true, subtree: true, attributes: true, characterData: true
+    });
+
+    // Timeout de seguridad — puede disparar tarde si la ventana está minimizada, lo cual es aceptable
+    const timer = setTimeout(
+      () => finish(false, new Error(`Timeout (${timeoutMs}ms) esperando condición`)),
+      timeoutMs
+    );
   });
 }
 
