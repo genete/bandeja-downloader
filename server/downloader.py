@@ -30,6 +30,10 @@ class Estado(str, Enum):
     SIN_DOCUMENTOS = "sin_documentos"
 
 
+# Tiempo máximo que un trabajo puede estar EN_CURSO antes de considerarse atascado
+_TIMEOUT_EN_CURSO_SEG = 5 * 60  # 5 minutos
+
+
 @dataclass
 class Trabajo:
     codigo:       str
@@ -37,6 +41,7 @@ class Trabajo:
     detalle:      str       = ""
     zip_filename: str       = ""
     timestamp:    Optional[datetime] = None
+    started_at:   Optional[datetime] = None  # momento en que pasó a EN_CURSO
 
 
 class Cola:
@@ -69,14 +74,20 @@ class Cola:
     # ── Control de trabajos ──────────────────────────────────────────────────
 
     def siguiente_pendiente(self) -> Optional[Trabajo]:
-        """Devuelve el siguiente trabajo pendiente sin modificar su estado."""
+        """
+        Devuelve el siguiente trabajo pendiente sin modificar su estado.
+        Antes resetea los trabajos EN_CURSO atascados (service worker reiniciado
+        a mitad de trabajo) para que puedan reintentarse.
+        """
+        self._resetear_atascados()
         return next((t for t in self.trabajos if t.estado == Estado.PENDIENTE), None)
 
     def iniciar(self, codigo: str) -> Optional[Trabajo]:
-        """Marca un trabajo como EN_CURSO."""
+        """Marca un trabajo como EN_CURSO y registra el momento de inicio."""
         trabajo = self._buscar(codigo, Estado.PENDIENTE)
         if trabajo:
-            trabajo.estado = Estado.EN_CURSO
+            trabajo.estado     = Estado.EN_CURSO
+            trabajo.started_at = datetime.now()
         return trabajo
 
     def completar(self, codigo: str, estado: Estado, detalle: str = "", zip_filename: str = "") -> None:
@@ -120,6 +131,17 @@ class Cola:
         }
 
     # ── Helpers privados ─────────────────────────────────────────────────────
+
+    def _resetear_atascados(self) -> None:
+        """Devuelve a PENDIENTE los trabajos EN_CURSO que superan el timeout."""
+        ahora = datetime.now()
+        for t in self.trabajos:
+            if t.estado == Estado.EN_CURSO and t.started_at:
+                segundos = (ahora - t.started_at).total_seconds()
+                if segundos > _TIMEOUT_EN_CURSO_SEG:
+                    logger.info("%s | reset_atascado | llevaba %.0fs EN_CURSO", t.codigo, segundos)
+                    t.estado     = Estado.PENDIENTE
+                    t.started_at = None
 
     def _buscar(self, codigo: str, estado: Estado) -> Optional[Trabajo]:
         return next(

@@ -285,9 +285,18 @@ async function procesarCodigo(codigo) {
 
 // ── Escuchar mensajes del background ────────────────────────────────────────
 
+let _procesando = false;
+
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === 'PROCESS_CODE') {
-    procesarCodigo(msg.codigo);
+    if (_procesando) {
+      // El service worker se reinició y envió un nuevo trabajo mientras el anterior
+      // aún corría — ignorar para no ejecutar dos procesarCodigo en paralelo
+      console.warn('[BandeJA] PROCESS_CODE ignorado — ya hay un trabajo en curso');
+      return;
+    }
+    _procesando = true;
+    procesarCodigo(msg.codigo).finally(() => { _procesando = false; });
   }
 });
 
