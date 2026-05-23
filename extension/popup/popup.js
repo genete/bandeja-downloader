@@ -27,6 +27,8 @@ async function actualizarEstado() {
 
 actualizarEstado();
 actualizarConfig();
+setInterval(actualizarEstado, 2000);
+setInterval(actualizarConfig, 2000);
 
 // ── Carga de CSV desde el popup ──────────────────────────────────────────────
 
