@@ -98,8 +98,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   switch (msg.type) {
 
     case 'DOWNLOAD_STARTED':
-      // La descarga ZIP fue iniciada — esperamos el evento chrome.downloads
-      console.log('[BandeJA] Descarga iniciada para', activeJob?.codigo);
+      // BandeJA está compilando el ZIP en el servidor — sin timeout aquí,
+      // la compilación puede tardar según el volumen de documentos
+      console.log('[BandeJA] Compilando ZIP para', activeJob?.codigo);
+      break;
+
+    case 'COMPILATION_DONE':
+      // El spinner desapareció: compilación terminada, la descarga debe arrancar en breve.
+      // El log muestra hasta 16s de delay entre spinner→onCreated, usamos 60s de margen.
+      console.log('[BandeJA] Compilación lista para', activeJob?.codigo, '— esperando evento Chrome');
+      if (activeJob && activeJob.downloadId === null) {
+        if (activeJob.noCreateTimeout) clearTimeout(activeJob.noCreateTimeout);
+        activeJob.noCreateTimeout = setTimeout(() => {
+          if (activeJob && activeJob.downloadId === null) {
+            finishJob('error', 'La descarga no se inició tras compilación (sin evento Chrome en 60s)');
+          }
+        }, 60_000);
+      }
       break;
 
     case 'DOWNLOAD_SUCCESS':
@@ -107,19 +122,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       // chrome.downloads.onChanged es la única fuente de verdad
       break;
 
-    case 'DOWNLOAD_STARTED':
-      // Si chrome.downloads.onCreated no dispara en 15s, la descarga nunca se inició
-      if (activeJob) {
-        activeJob.noCreateTimeout = setTimeout(() => {
-          if (activeJob && activeJob.downloadId === null) {
-            finishJob('error', 'La descarga no se inició (sin evento Chrome en 15s)');
-          }
-        }, 15_000);
-      }
-      break;
-
     case 'DOWNLOAD_ERROR':
-      finishJob('error', msg.reason || 'Error desconocido');
+      // Si la descarga ya empezó (downloadId asignado), el toast de BandeJA puede ser
+      // un error de UI no relacionado. Dejamos que onChanged decida el resultado final.
+      if (activeJob && activeJob.downloadId !== null) {
+        console.warn('[BandeJA] Toast de error ignorado para', activeJob.codigo, '— descarga en curso, esperando onChanged');
+      } else {
+        finishJob('error', msg.reason || 'Error desconocido');
+      }
       break;
 
     case 'SIN_DOCUMENTOS':
@@ -133,21 +143,42 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 chrome.downloads.onCreated.addListener((item) => {
   if (!activeJob || activeJob.downloadId !== null) return;
 
-  // Verificar que el fichero descargado corresponde al código activo
-  // Formato esperado: documentos_EXT_2026_0000000003004075.zip
-  const codigoEnFilename = activeJob.codigo.replace(/\//g, '_');
-  if (!item.filename.includes(codigoEnFilename)) {
-    console.warn('[BandeJA] onCreated ignorado — no coincide con código activo:', item.filename, '!=', codigoEnFilename);
-    return;
+  if (item.filename) {
+    // Filename ya disponible: verificar que corresponde al código activo
+    const codigoEnFilename = activeJob.codigo.replace(/\//g, '_');
+    if (!item.filename.includes(codigoEnFilename)) {
+      console.warn('[BandeJA] onCreated ignorado — no coincide:', item.filename, '!=', codigoEnFilename);
+      return;
+    }
+    activeJob.downloadId = item.id;
+    activeJob.filename   = item.filename;
+    if (activeJob.noCreateTimeout) clearTimeout(activeJob.noCreateTimeout);
+    console.log('[BandeJA] Descarga registrada:', item.id, item.filename);
+  } else {
+    // Filename vacío en onCreated (Chrome lo asigna en onChanged) — guardar candidato
+    activeJob._pendingDownloadId = item.id;
+    console.log('[BandeJA] Descarga pendiente de verificar filename:', item.id);
   }
-
-  activeJob.downloadId = item.id;
-  activeJob.filename   = item.filename || '';
-  if (activeJob.noCreateTimeout) clearTimeout(activeJob.noCreateTimeout);
-  console.log('[BandeJA] Descarga Chrome registrada:', item.id, item.filename);
 });
 
 chrome.downloads.onChanged.addListener((delta) => {
+  // Verificar candidato pendiente (filename vacío en onCreated)
+  if (activeJob && activeJob.downloadId === null &&
+      activeJob._pendingDownloadId === delta.id && delta.filename?.current) {
+    const codigoEnFilename = activeJob.codigo.replace(/\//g, '_');
+    if (delta.filename.current.includes(codigoEnFilename)) {
+      activeJob.downloadId = delta.id;
+      activeJob.filename   = delta.filename.current;
+      delete activeJob._pendingDownloadId;
+      if (activeJob.noCreateTimeout) clearTimeout(activeJob.noCreateTimeout);
+      console.log('[BandeJA] Descarga verificada via onChanged:', delta.id, delta.filename.current);
+    } else {
+      // No corresponde al código activo — descartar (evita cascada de ficheros desfasados)
+      delete activeJob._pendingDownloadId;
+      console.warn('[BandeJA] Descarga rechazada — filename no coincide:', delta.filename.current);
+    }
+  }
+
   if (!activeJob || delta.id !== activeJob.downloadId) return;
 
   if (delta.state?.current === 'complete') {

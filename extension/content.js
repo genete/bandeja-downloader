@@ -133,7 +133,16 @@ function modalAbierto() {
     document.querySelector('#descargarZip') !== null;
 }
 
+async function cerrarModalSiAbierto() {
+  if (!modalAbierto()) return;
+  document.querySelector('#cerrarModalInfo')?.click();
+  try { await waitFor(() => !modalAbierto(), 3_000); } catch { /* continuar igualmente */ }
+}
+
 async function abrirModalInfo() {
+  // Asegurarse de que no hay un modal anterior abierto antes de abrir el nuevo
+  await cerrarModalSiAbierto();
+
   const primeraFila = document.querySelector(
     'table.listadoComunicaciones tbody tr:first-child, table.dataTable tbody tr:first-child'
   );
@@ -200,13 +209,24 @@ async function descargarYEsperar() {
   // Pulsar descarga vía bridge (mundo MAIN) para evitar la CSP de BandeJA
   window.postMessage({ bandeja: true, action: 'descargarZip' }, '*');
 
-  // Notificar al background que la descarga fue iniciada (para su fallback de timeout)
+  // Notificar al background que la petición salió (compilación en servidor, sin timeout aún)
   chrome.runtime.sendMessage({ type: 'DOWNLOAD_STARTED' });
 
-  // Esperar el spinner como confirmación de que la petición salió
-  try {
-    await waitFor(() => spinnerEl && spinnerEl.style.display !== 'none', 8_000);
-  } catch { /* spinner puede aparecer y desaparecer muy rápido */ }
+  // Esperar a que el spinner aparezca (confirma que la petición llegó al servidor)
+  const spinnerDetectado = await waitFor(
+    () => spinnerEl && spinnerEl.style.display !== 'none', 8_000
+  ).then(() => true).catch(() => false);
+
+  // Cuando el spinner desaparezca → compilación terminada → avisar al background
+  // para que arranque el timer de "el navegador debe iniciar la descarga ya"
+  if (spinnerDetectado) {
+    waitFor(() => spinnerEl.style.display === 'none', TIMEOUT_DESCARGA_MS)
+      .then(() => chrome.runtime.sendMessage({ type: 'COMPILATION_DONE' }))
+      .catch(() => {});
+  } else {
+    // Spinner no detectado: apareció y desapareció antes de poder verlo → compilación instantánea
+    chrome.runtime.sendMessage({ type: 'COMPILATION_DONE' });
+  }
 
   // Dos señales en carrera: toast de error vs botón reapareciendo
   // Si ninguna llega en TIMEOUT_DESCARGA_MS → 'pendiente' (background.js detecta éxito via chrome.downloads)
@@ -257,8 +277,8 @@ async function procesarCodigo(codigo) {
       chrome.runtime.sendMessage({ type: 'DOWNLOAD_ERROR', reason: e.message });
     }
   } finally {
-    // Cerrar modal si sigue abierto
-    document.querySelector('#cerrarModalInfo')?.click();
+    // Cerrar modal y esperar a que desaparezca antes de que llegue el siguiente trabajo
+    await cerrarModalSiAbierto();
   }
 }
 
