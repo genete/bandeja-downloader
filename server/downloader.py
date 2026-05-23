@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import csv
 import logging
+from . import notifier
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -87,6 +88,24 @@ class Cola:
             trabajo.zip_filename = zip_filename
             trabajo.timestamp    = datetime.now()
             logger.info("%s | %s | %s | %s", codigo, estado.value, zip_filename, detalle)
+            self._notificar(codigo, estado, detalle)
+
+    def _notificar(self, codigo: str, estado: Estado, detalle: str) -> None:
+        pendientes = self._contar(Estado.PENDIENTE)
+        en_curso   = self._contar(Estado.EN_CURSO)
+        restantes  = pendientes + en_curso
+
+        if estado == Estado.OK:
+            titulo  = f"✓ Descargado"
+            mensaje = f"{codigo}\nQuedan {restantes}"
+        elif estado == Estado.SIN_DOCUMENTOS:
+            titulo  = f"— Sin documentos"
+            mensaje = f"{codigo}\nQuedan {restantes}"
+        else:
+            titulo  = f"✗ Error"
+            mensaje = f"{codigo}\n{detalle[:80] if detalle else ''}"
+
+        notifier.notificar(titulo, mensaje)
 
     # ── Estadísticas ─────────────────────────────────────────────────────────
 
