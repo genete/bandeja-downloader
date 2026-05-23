@@ -7,6 +7,7 @@ import csv
 import io
 import logging
 import re
+import threading
 from . import notifier
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -144,6 +145,8 @@ class Cola:
             trabajo.timestamp    = datetime.now()
             logger.info("%s | %s | %s | %s", codigo, estado.value, zip_filename, detalle)
             self._notificar(codigo, estado, detalle)
+            if self._contar(Estado.PENDIENTE) == 0 and self._contar(Estado.EN_CURSO) == 0:
+                self._cola_completada()
 
     def _notificar(self, codigo: str, estado: Estado, detalle: str) -> None:
         pendientes = self._contar(Estado.PENDIENTE)
@@ -175,6 +178,26 @@ class Cola:
         }
 
     # ── Helpers privados ─────────────────────────────────────────────────────
+
+    def _cola_completada(self) -> None:
+        ok      = self._contar(Estado.OK)
+        error   = self._contar(Estado.ERROR)
+        sin_doc = self._contar(Estado.SIN_DOCUMENTOS)
+        total   = len(self.trabajos)
+        logger.info(
+            "COLA COMPLETADA — Total: %d | OK: %d | Error: %d | Sin documentos: %d",
+            total, ok, error, sin_doc
+        )
+        notifier.notificar(
+            "✅ Cola completada",
+            f"Total: {total}  ✓{ok}  ✗{error}  📭{sin_doc}\nCargue un nuevo CSV para continuar"
+        )
+        # Vaciar la cola tras 10s para que la TUI muestre el estado final brevemente
+        threading.Timer(10, self._vaciar).start()
+
+    def _vaciar(self) -> None:
+        self.trabajos.clear()
+        logger.info("Cola vaciada — lista para nuevo CSV")
 
     def _resetear_atascados(self) -> None:
         """Devuelve a PENDIENTE los trabajos EN_CURSO que superan el timeout."""
