@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Optional
 
 # Patrón de código BandeJA: EXT/2026/0000000003004075
-_CODIGO_RE = re.compile(r'^[A-Z]{2,3}/\d{4}/\d+$')
+_CODIGO_RE = re.compile(r'^(EXT|INT)/\d{4}/\d+$')
 
 # Log en la raíz del proyecto (D:/BANDEJADL/bandeja_downloader.log)
 _LOG_PATH = Path(__file__).parent.parent / "bandeja_downloader.log"
@@ -106,10 +106,21 @@ class Cola:
                 continue
 
             codigo = fila[col].strip()
-            if _CODIGO_RE.match(codigo) and codigo not in codigos_existentes:
+            if codigo in codigos_existentes:
+                continue
+            if _CODIGO_RE.match(codigo):
                 self.trabajos.append(Trabajo(codigo=codigo, fila_original=list(fila)))
                 codigos_existentes.add(codigo)
                 nuevos += 1
+            elif codigo:
+                # Código inválido: aparece como error en la TUI y en el CSV exportado
+                self.trabajos.append(Trabajo(
+                    codigo=codigo,
+                    estado=Estado.ERROR,
+                    detalle="Código no reconocido",
+                    fila_original=list(fila),
+                ))
+                codigos_existentes.add(codigo)
 
         return nuevos
 
@@ -212,12 +223,12 @@ class Cola:
         out = io.StringIO()
         writer = csv.writer(out)
         if self.cabecera:
-            writer.writerow(self.cabecera + ["Resultado", "Fichero ZIP"])
+            writer.writerow(self.cabecera + ["Resultado", "Fichero ZIP", "Detalle"])
         else:
-            writer.writerow(["Código", "Resultado", "Fichero ZIP"])
+            writer.writerow(["Código", "Resultado", "Fichero ZIP", "Detalle"])
         for t in self.trabajos:
             fila = t.fila_original if t.fila_original else [t.codigo]
-            writer.writerow(fila + [t.estado.value, t.zip_filename])
+            writer.writerow(fila + [t.estado.value, t.zip_filename, t.detalle])
         return out.getvalue()
 
     def _vaciar(self) -> None:
