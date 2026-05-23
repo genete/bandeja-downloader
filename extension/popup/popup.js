@@ -26,6 +26,7 @@ async function actualizarEstado() {
 }
 
 actualizarEstado();
+actualizarConfig();
 
 // ── Carga de CSV desde el popup ──────────────────────────────────────────────
 
@@ -65,6 +66,36 @@ inputCsv.addEventListener('change', async () => {
 
   // Limpiar para permitir seleccionar el mismo fichero otra vez
   inputCsv.value = '';
+});
+
+// ── Directorio destino ───────────────────────────────────────────────────────
+
+const destinoPath = document.getElementById('destino-path');
+
+async function actualizarConfig() {
+  try {
+    const res = await fetch(`${SERVER_URL}/api/config`, { signal: AbortSignal.timeout(3000) });
+    if (!res.ok) return;
+    const data = await res.json();
+    destinoPath.textContent = data.destino || 'Sin carpeta configurada';
+  } catch {
+    // servidor no disponible — silencioso
+  }
+}
+
+document.getElementById('btn-pick-dir').addEventListener('click', async () => {
+  destinoPath.textContent = 'Abriendo diálogo…';
+  try {
+    const res = await fetch(`${SERVER_URL}/api/pick-directory`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(60_000),  // el usuario puede tardar en elegir
+    });
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    destinoPath.textContent = data.destino || 'Sin carpeta configurada';
+  } catch {
+    destinoPath.textContent = 'Error al abrir el diálogo';
+  }
 });
 
 // ── Exportar resultados ──────────────────────────────────────────────────────
