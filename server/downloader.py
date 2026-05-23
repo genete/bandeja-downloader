@@ -55,8 +55,9 @@ class Cola:
     """Cola de trabajos de descarga. Hilo-segura para lecturas concurrentes."""
 
     def __init__(self) -> None:
-        self.trabajos: list[Trabajo] = []
-        self.cabecera: list[str]     = []  # fila de cabecera del CSV original
+        self.trabajos:       list[Trabajo] = []
+        self.cabecera:       list[str]     = []  # fila de cabecera del CSV original
+        self._ultimo_export: str           = ""  # snapshot del CSV antes de vaciar
 
     # ── Carga ────────────────────────────────────────────────────────────────
 
@@ -73,6 +74,7 @@ class Cola:
 
     def cargar_texto_csv(self, texto: str) -> int:
         """Carga códigos desde el contenido de un CSV ya leído como texto."""
+        self._ultimo_export = ""  # nuevo lote → invalidar snapshot anterior
         reader = csv.reader(io.StringIO(texto))
         return self._cargar_reader(reader)
 
@@ -200,23 +202,27 @@ class Cola:
         threading.Timer(10, self._vaciar).start()
 
     def exportar_csv(self) -> str:
-        """Devuelve el CSV original con una columna 'Resultado' añadida al final."""
+        """
+        Devuelve el CSV con resultados.
+        Si la cola ya fue vaciada, devuelve el último snapshot guardado.
+        """
+        if not self.trabajos:
+            return self._ultimo_export
+
         out = io.StringIO()
         writer = csv.writer(out)
-
-        # Cabecera
         if self.cabecera:
             writer.writerow(self.cabecera + ["Resultado", "Fichero ZIP"])
         else:
             writer.writerow(["Código", "Resultado", "Fichero ZIP"])
-
         for t in self.trabajos:
             fila = t.fila_original if t.fila_original else [t.codigo]
             writer.writerow(fila + [t.estado.value, t.zip_filename])
-
         return out.getvalue()
 
     def _vaciar(self) -> None:
+        # Guardar snapshot antes de limpiar para que el export siga disponible
+        self._ultimo_export = self.exportar_csv()
         self.trabajos.clear()
         self.cabecera.clear()
         logger.info("Cola vaciada — lista para nuevo CSV")
