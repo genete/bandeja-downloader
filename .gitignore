@@ -12,8 +12,9 @@ dist/
 build/
 .env
 
-# Datos locales sensibles
-data/pending.csv
+# Datos locales y output de build
+data/
+release/
 bandeja_downloader.log
 
 # Editor
