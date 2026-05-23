@@ -17,7 +17,7 @@ from textual.binding import Binding
 from textual.widgets import DataTable, Footer, Header, Label, Static
 from textual.containers import Vertical
 
-from .api import app as fastapi_app, inyectar_cola
+from .api import app as fastapi_app, inyectar_cola, set_pausado
 from .config import PENDING_CSV, SERVER_HOST, SERVER_PORT
 from .downloader import Cola, Estado
 
@@ -110,7 +110,8 @@ class BandeJAApp(App):
 
     def action_pausar(self) -> None:
         self.pausado = not self.pausado
-        estado = "PAUSADO" if self.pausado else "ACTIVO"
+        set_pausado(self.pausado)           # propaga al API
+        estado = "PAUSADO ⏸" if self.pausado else "ACTIVO ▶"
         self.notify(f"Estado: {estado}")
         self._actualizar_pie()
 

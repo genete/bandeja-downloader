@@ -128,43 +128,71 @@ async function filtrarPorCodigo(codigo) {
 
 // ── Paso 2: Abrir modal de información ──────────────────────────────────────
 
+function modalAbierto() {
+  const modal = document.querySelector('#modal');
+  return modal &&
+    modal.classList.contains('show') &&
+    modal.style.display !== 'none' &&
+    document.querySelector('#descargarZip') !== null;
+}
+
 async function abrirModalInfo() {
-  // La primera fila del listado filtrado
   const primeraFila = document.querySelector(
     'table.listadoComunicaciones tbody tr:first-child, table.dataTable tbody tr:first-child'
   );
   if (!primeraFila) throw new Error('No se encontró la fila de la comunicación en el listado');
 
-  // Activar hover sobre la fila para que aparezcan los iconos de acción
+  // ── Intento 1: doble clic sobre la fila (método confirmado por el usuario) ──
+  primeraFila.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+  try {
+    await waitFor(modalAbierto, 4_000);
+    return; // éxito
+  } catch { /* seguimos con el siguiente intento */ }
+
+  // ── Intento 2: hover + buscar icono por título/aria-label/onclick ────────────
   primeraFila.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
   primeraFila.dispatchEvent(new MouseEvent('mouseover',  { bubbles: true }));
+  await new Promise(r => setTimeout(r, 500));
 
-  await new Promise(r => setTimeout(r, 400)); // pequeña pausa para que el DOM actualice
+  // Buscar en la fila Y en el documento (por si el overlay está fuera del <tr>)
+  const candidatos = [
+    ...primeraFila.querySelectorAll('a, button, i, span, img'),
+    ...document.querySelectorAll('a, button, i, span, img'),
+  ];
+  const infoEl = candidatos.find(el => {
+    const texto = (el.title || el.getAttribute('aria-label') || el.getAttribute('onclick') || '').toLowerCase();
+    return texto.includes('informaci');
+  });
 
-  // Buscar el icono/botón de "Información detallada"
-  // Puede estar en la fila o en el documento (si es un overlay)
-  const infoEl =
-    primeraFila.querySelector('[title*="nformaci"], [onclick*="informaci"]') ||
-    document.querySelector('[title*="nformaci"], [onclick*="informaci"]');
-
-  if (!infoEl) {
-    // Fallback: buscar por texto en spans/links de la fila
-    const enlace = Array.from(primeraFila.querySelectorAll('a, span, i, button'))
-      .find(el => /informaci/i.test(el.title || el.getAttribute('aria-label') || ''));
-    if (!enlace) throw new Error('Icono "Información detallada" no encontrado en la fila');
-    enlace.click();
-  } else {
+  if (infoEl) {
     infoEl.click();
+    try {
+      await waitFor(modalAbierto, 4_000);
+      return;
+    } catch { /* seguimos */ }
   }
 
-  // Esperar a que el modal esté visible
-  await waitFor(() => {
-    const modal = document.querySelector('#modal');
-    return modal &&
-      modal.classList.contains('show') &&
-      modal.style.display !== 'none' &&
-      document.querySelector('#descargarZip') !== null;
-  }, TIMEOUT_MODAL_MS);
+  // ── Intento 3: llamar abrirModal() con el ID interno extraído del DOM ─────────
+  // BandeJA guarda el ID en atributos data-* o en onclicks de la fila
+  const onclicks = Array.from(primeraFila.querySelectorAll('[onclick]'))
+    .map(el => el.getAttribute('onclick'));
+  const idMatch = onclicks.join(' ').match(/abrirModal\([^,]+,\s*'?(\d+)'?\)/);
+
+  if (idMatch) {
+    const idInterno = idMatch[1];
+    console.log('[BandeJA] Llamando abrirModal con ID interno:', idInterno);
+    // eslint-disable-next-line no-undef
+    if (typeof abrirModal === 'function') abrirModal('informacion', idInterno);
+    try {
+      await waitFor(modalAbierto, 4_000);
+      return;
+    } catch { /* seguimos */ }
+  }
+
+  throw new Error(
+    'No se pudo abrir el modal de información. ' +
+    'Comprueba que la fila visible es la comunicación correcta.'
+  );
 }
 
 // ── Paso 3: Descargar ZIP y esperar resultado ────────────────────────────────

@@ -21,13 +21,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Cola global inyectada desde main.py
+# Estado global inyectado desde main.py
 _cola: Optional[Cola] = None
+_pausado: bool = False
 
 
 def inyectar_cola(cola: Cola) -> None:
     global _cola
     _cola = cola
+
+
+def set_pausado(valor: bool) -> None:
+    global _pausado
+    _pausado = valor
+
+
+def get_pausado() -> bool:
+    return _pausado
 
 
 # ── Modelos ──────────────────────────────────────────────────────────────────
@@ -44,13 +54,21 @@ class ResultadoPayload(BaseModel):
 @app.get("/api/next")
 async def get_next():
     """La extensión solicita el siguiente trabajo pendiente."""
-    if not _cola:
+    if not _cola or _pausado:
         return {}
     trabajo = _cola.siguiente_pendiente()
     if not trabajo:
         return {}
     _cola.iniciar(trabajo.codigo)
     return {"codigo": trabajo.codigo}
+
+
+@app.get("/api/status")
+async def get_status():
+    """Estado general de la cola (usado también por el popup de la extensión)."""
+    if not _cola:
+        return {}
+    return {**_cola.stats, "pausado": _pausado}
 
 
 @app.post("/api/result")
@@ -63,9 +81,3 @@ async def post_result(payload: ResultadoPayload):
     return {"ok": True}
 
 
-@app.get("/api/status")
-async def get_status():
-    """Estado general de la cola (usado también por el popup de la extensión)."""
-    if not _cola:
-        return {}
-    return _cola.stats
