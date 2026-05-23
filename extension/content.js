@@ -5,19 +5,6 @@ const TIMEOUT_FILTRO_MS   = 15_000;   // espera máx para que actualice la lista
 const TIMEOUT_MODAL_MS    = 10_000;   // espera máx para que abra el modal
 const TIMEOUT_DESCARGA_MS = 120_000;  // espera máx para que termine el ZIP (2 min)
 
-// ── Ejecutar código en el contexto de la página (no del content script) ─────
-// Los content scripts viven en un "mundo aislado": tienen acceso al DOM pero NO
-// a las funciones globales de BandeJA (descargarZip, abrirModal, etc.).
-// Inyectar un <script> es la forma estándar de llamar código del contexto de página
-// y evita errores CSP al hacer clic en <a href="javascript:...">.
-
-function ejecutarEnPagina(codigoJs) {
-  const script = document.createElement('script');
-  script.textContent = codigoJs;
-  (document.head || document.documentElement).appendChild(script);
-  script.remove();
-}
-
 // ── Utilidad: esperar condición con timeout ──────────────────────────────────
 
 function waitFor(conditionFn, timeoutMs) {
@@ -86,10 +73,11 @@ function watchForErrorToast(timeoutMs) {
 // ── Paso 1: Filtrar por código ───────────────────────────────────────────────
 
 function contarFilas() {
-  const filas = document.querySelectorAll(
+  // Excluir filas que estén dentro del modal — table.dataTable se usa también ahí
+  const filas = Array.from(document.querySelectorAll(
     'table.listadoComunicaciones tbody tr, table.dataTable tbody tr'
-  );
-  // Devuelve 0 si la única fila es el mensaje "sin resultados"
+  )).filter(tr => !tr.closest('#modal'));
+
   if (filas.length === 1 && /sin resultado|no hay|no se han/i.test(filas[0]?.textContent)) {
     return 0;
   }
@@ -97,46 +85,42 @@ function contarFilas() {
 }
 
 async function filtrarPorCodigo(codigo) {
-  // 1. Borrar filtros predeterminados de BandeJA (estados, fechas, etc.)
-  //    El botón puede llamarse "BORRAR FILTROS" o "Borrar filtros"
-  const btnBorrar = Array.from(document.querySelectorAll('button'))
-    .find(b => /borrar\s+filtros?/i.test(b.textContent.trim()));
-
+  // 1. Borrar filtros predeterminados de BandeJA
+  const btnBorrar = document.querySelector('#borrarFiltros');
   if (btnBorrar) {
     btnBorrar.click();
-    // Esperar a que el listado se actualice tras borrar los filtros
-    // (la lista mostrará más filas o se vaciará)
-    await new Promise(r => setTimeout(r, 800));
+    await new Promise(r => setTimeout(r, 1200));
   } else {
-    console.warn('[BandeJA] Botón "Borrar filtros" no encontrado — continuando sin borrar');
+    console.warn('[BandeJA] Botón #borrarFiltros no encontrado — continuando sin borrar');
   }
 
-  // 2. Localizar el campo Código del panel de filtros
-  const inputCodigo = document.querySelector(
-    'input[placeholder*="digo"], input[id*="odigo" i], input[name*="odigo" i]'
-  );
-  if (!inputCodigo) throw new Error('Campo Código no encontrado en el filtro');
+  // 2. Localizar el campo Código
+  const inputCodigo = document.querySelector('#codigoExpedienteFiltro');
+  if (!inputCodigo) throw new Error('Campo #codigoExpedienteFiltro no encontrado');
 
-  // Limpiar primero el campo por si tenía valor previo
-  inputCodigo.value = '';
-  inputCodigo.dispatchEvent(new Event('input',  { bubbles: true }));
-
-  // Escribir el código simulando eventos nativos (para que jQuery/Struts lo detecte)
+  // Escribir el código usando el setter nativo para que React/jQuery lo detecte
   const nativeSetter = Object.getOwnPropertyDescriptor(
     window.HTMLInputElement.prototype, 'value'
   )?.set;
   if (nativeSetter) nativeSetter.call(inputCodigo, codigo);
+  else inputCodigo.value = codigo;
   inputCodigo.dispatchEvent(new Event('input',  { bubbles: true }));
   inputCodigo.dispatchEvent(new Event('change', { bubbles: true }));
+  inputCodigo.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
 
   // 3. Pulsar el botón "Filtrar"
-  const btnFiltrar = Array.from(document.querySelectorAll('button'))
-    .find(b => /^filtrar$/i.test(b.textContent.trim()));
-  if (!btnFiltrar) throw new Error('Botón "Filtrar" no encontrado');
+  const btnFiltrar = document.querySelector('#filtrar');
+  if (!btnFiltrar) throw new Error('Botón #filtrar no encontrado');
   btnFiltrar.click();
 
-  // 4. Esperar a que la tabla muestre exactamente 1 fila (la comunicación buscada)
-  await waitFor(() => contarFilas() === 1, TIMEOUT_FILTRO_MS);
+  // 4. Esperar a que la tabla muestre exactamente 1 fila
+  try {
+    await waitFor(() => contarFilas() === 1, TIMEOUT_FILTRO_MS);
+  } catch {
+    const n = contarFilas();
+    if (n === 0) throw new Error(`Código no encontrado en BandeJA: ${codigo}`);
+    throw new Error(`Filtro no convergió: ${n} filas tras ${TIMEOUT_FILTRO_MS / 1000}s (esperaba 1)`);
+  }
 }
 
 // ── Paso 2: Abrir modal de información ──────────────────────────────────────
@@ -194,8 +178,8 @@ async function abrirModalInfo() {
 
   if (idMatch) {
     const idInterno = idMatch[1];
-    console.log('[BandeJA] Inyectando abrirModal con ID interno:', idInterno);
-    ejecutarEnPagina(`abrirModal('informacion', '${idInterno}');`);
+    console.log('[BandeJA] Enviando abrirModal con ID interno:', idInterno);
+    window.postMessage({ bandeja: true, action: 'abrirModal', args: ['informacion', idInterno] }, '*');
     try {
       await waitFor(modalAbierto, 4_000);
       return;
@@ -219,9 +203,8 @@ async function descargarYEsperar() {
   // Lanzar el observador de toast de error ANTES de pulsar
   const toastPromise = watchForErrorToast(TIMEOUT_DESCARGA_MS);
 
-  // Pulsar descarga — inyectamos en el contexto de página para evitar el error CSP
-  // que bloquea clic en <a href="javascript:..."> desde el content script
-  ejecutarEnPagina('mostrarEspera = false; descargarZip();');
+  // Pulsar descarga vía bridge (mundo MAIN) para evitar la CSP de BandeJA
+  window.postMessage({ bandeja: true, action: 'descargarZip' }, '*');
 
   // Esperar a que el spinner de "Descargando..." aparezca (señal de que la petición salió)
   try {

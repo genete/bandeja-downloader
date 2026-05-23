@@ -4,11 +4,21 @@ Gestión de la cola de trabajos de descarga.
 from __future__ import annotations
 
 import csv
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Optional
+
+# Log en la raíz del proyecto (D:/BANDEJADL/bandeja_downloader.log)
+_LOG_PATH = Path(__file__).parent.parent / "bandeja_downloader.log"
+_handler = logging.FileHandler(_LOG_PATH, encoding="utf-8")
+_handler.setFormatter(logging.Formatter("%(asctime)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
+logger = logging.getLogger("bandeja")
+logger.setLevel(logging.INFO)
+logger.addHandler(_handler)
+logger.propagate = False
 
 
 class Estado(str, Enum):
@@ -20,10 +30,11 @@ class Estado(str, Enum):
 
 @dataclass
 class Trabajo:
-    codigo:    str
-    estado:    Estado    = Estado.PENDIENTE
-    detalle:   str       = ""
-    timestamp: Optional[datetime] = None
+    codigo:       str
+    estado:       Estado    = Estado.PENDIENTE
+    detalle:      str       = ""
+    zip_filename: str       = ""
+    timestamp:    Optional[datetime] = None
 
 
 class Cola:
@@ -66,13 +77,15 @@ class Cola:
             trabajo.estado = Estado.EN_CURSO
         return trabajo
 
-    def completar(self, codigo: str, estado: Estado, detalle: str = "") -> None:
-        """Registra el resultado de un trabajo (OK o ERROR)."""
+    def completar(self, codigo: str, estado: Estado, detalle: str = "", zip_filename: str = "") -> None:
+        """Registra el resultado de un trabajo (OK o ERROR) y lo vuelca al log."""
         trabajo = next((t for t in self.trabajos if t.codigo == codigo), None)
         if trabajo:
-            trabajo.estado    = estado
-            trabajo.detalle   = detalle
-            trabajo.timestamp = datetime.now()
+            trabajo.estado       = estado
+            trabajo.detalle      = detalle
+            trabajo.zip_filename = zip_filename
+            trabajo.timestamp    = datetime.now()
+            logger.info("%s | %s | %s | %s", codigo, estado.value, zip_filename, detalle)
 
     # ── Estadísticas ─────────────────────────────────────────────────────────
 

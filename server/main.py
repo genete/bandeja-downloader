@@ -142,12 +142,13 @@ class BandeJAApp(App):
         tabla.clear()
 
         for t in self.cola.trabajos:
-            hora = t.timestamp.strftime("%H:%M:%S") if t.timestamp else ""
+            hora        = t.timestamp.strftime("%H:%M:%S") if t.timestamp else ""
+            detalle_txt = t.zip_filename if t.zip_filename else t.detalle[:60]
             tabla.add_row(
                 ICONOS[t.estado],
                 t.codigo,
                 t.estado.value,
-                t.detalle[:60],
+                detalle_txt,
                 hora,
                 key=t.codigo,
             )

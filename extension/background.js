@@ -111,6 +111,7 @@ chrome.downloads.onCreated.addListener((item) => {
   if (activeJob && activeJob.downloadId === null) {
     // Asociar la primera descarga creada con el trabajo activo
     activeJob.downloadId = item.id;
+    activeJob.filename   = item.filename || '';
     console.log('[BandeJA] Descarga Chrome registrada:', item.id, item.filename);
   }
 });
@@ -134,12 +135,13 @@ chrome.downloads.onChanged.addListener((delta) => {
 
 function finishJob(status, detail) {
   if (!activeJob) return;
-  const codigo = activeJob.codigo;
+  const codigo   = activeJob.codigo;
+  const filename = activeJob.filename || '';
   activeJob = null;
-  reportResult(codigo, status, detail);
+  reportResult(codigo, status, detail, filename);
 }
 
-async function reportResult(codigo, status, detail) {
+async function reportResult(codigo, status, detail, zip_filename = '') {
   try {
     await fetch(`${SERVER_URL}/api/result`, {
       method: 'POST',
@@ -148,6 +150,7 @@ async function reportResult(codigo, status, detail) {
         codigo,
         status,
         detail,
+        zip_filename,
         timestamp: new Date().toISOString()
       }),
       signal: AbortSignal.timeout(5000)

@@ -13,17 +13,17 @@
 
 ## Incertidumbres / pendientes
 
-### 1. Log de actividad (PRIORIDAD ALTA)
-Escribir `bandeja_downloader.log` con:
-- Timestamp, código procesado, resultado (ok/error), nombre del ZIP descargado, detalle de error
-- El servidor Python debe escribirlo en `downloader.py` o `api.py` al recibir resultados
-- Claude puede leerlo en futuras sesiones para depurar
+### 1. Log de actividad ✅ RESUELTO
+`bandeja_downloader.log` en la raíz del proyecto.
+Formato: `2026-05-23 12:34:56 | EXT/2026/... | ok | fichero.zip | detalle`
+Escrito desde `downloader.py::completar()` usando el módulo `logging`.
 
-### 2. Nombre del ZIP en la TUI (PRIORIDAD ALTA)
-- En `background.js`, `chrome.downloads.onCreated` recibe el `filename` del ZIP
-- Hay que pasarlo al servidor junto con el resultado `ok`
-- La TUI debe mostrarlo en la columna "Detalle" de la tabla
-- Sirve para confirmar que la descarga ocurrió realmente (en una prueba el listado marcó OK sin certeza)
+### 2. Nombre del ZIP en la TUI ✅ RESUELTO
+- `background.js::onCreated` guarda `item.filename` en `activeJob.filename`
+- `finishJob()` lo pasa a `reportResult()` como `zip_filename`
+- `api.py` lo recibe en `ResultadoPayload` y lo pasa a `Cola.completar()`
+- `downloader.py::Trabajo` tiene campo `zip_filename`
+- TUI muestra `zip_filename` (si existe) o `detalle` en la columna Detalle
 
 ### 3. Verificar apertura del modal (PRIORIDAD MEDIA)
 `abrirModalInfo()` en `content.js` tiene 3 intentos:

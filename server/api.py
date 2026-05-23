@@ -43,10 +43,11 @@ def get_pausado() -> bool:
 # ── Modelos ──────────────────────────────────────────────────────────────────
 
 class ResultadoPayload(BaseModel):
-    codigo:    str
-    status:    str       # "ok" | "error"
-    detail:    str = ""
-    timestamp: Optional[str] = None
+    codigo:       str
+    status:       str       # "ok" | "error"
+    detail:       str = ""
+    zip_filename: str = ""
+    timestamp:    Optional[str] = None
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
@@ -77,7 +78,7 @@ async def post_result(payload: ResultadoPayload):
     if not _cola:
         return {"ok": False, "error": "Cola no inicializada"}
     estado = Estado.OK if payload.status == "ok" else Estado.ERROR
-    _cola.completar(payload.codigo, estado, payload.detail)
+    _cola.completar(payload.codigo, estado, payload.detail, payload.zip_filename)
     return {"ok": True}
 
 

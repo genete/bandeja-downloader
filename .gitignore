@@ -14,6 +14,7 @@ build/
 
 # Datos locales sensibles
 data/pending.csv
+bandeja_downloader.log
 
 # Editor
 .vscode/
