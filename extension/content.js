@@ -72,43 +72,58 @@ function watchForErrorToast(timeoutMs) {
 
 // ── Paso 1: Filtrar por código ───────────────────────────────────────────────
 
+function contarFilas() {
+  const filas = document.querySelectorAll(
+    'table.listadoComunicaciones tbody tr, table.dataTable tbody tr'
+  );
+  // Devuelve 0 si la única fila es el mensaje "sin resultados"
+  if (filas.length === 1 && /sin resultado|no hay|no se han/i.test(filas[0]?.textContent)) {
+    return 0;
+  }
+  return filas.length;
+}
+
 async function filtrarPorCodigo(codigo) {
-  // Buscar botón "Borrar filtros" y pulsarlo primero para limpiar estado previo
+  // 1. Borrar filtros predeterminados de BandeJA (estados, fechas, etc.)
+  //    El botón puede llamarse "BORRAR FILTROS" o "Borrar filtros"
   const btnBorrar = Array.from(document.querySelectorAll('button'))
-    .find(b => /borrar filtro/i.test(b.textContent));
+    .find(b => /borrar\s+filtros?/i.test(b.textContent.trim()));
+
   if (btnBorrar) {
     btnBorrar.click();
-    await new Promise(r => setTimeout(r, 500));
+    // Esperar a que el listado se actualice tras borrar los filtros
+    // (la lista mostrará más filas o se vaciará)
+    await new Promise(r => setTimeout(r, 800));
+  } else {
+    console.warn('[BandeJA] Botón "Borrar filtros" no encontrado — continuando sin borrar');
   }
 
-  // Buscar campo de código por placeholder
+  // 2. Localizar el campo Código del panel de filtros
   const inputCodigo = document.querySelector(
     'input[placeholder*="digo"], input[id*="odigo" i], input[name*="odigo" i]'
   );
   if (!inputCodigo) throw new Error('Campo Código no encontrado en el filtro');
 
-  // Rellenar el campo simulando eventos nativos para que React/jQuery lo detecten
-  const nativeInputSetter = Object.getOwnPropertyDescriptor(
+  // Limpiar primero el campo por si tenía valor previo
+  inputCodigo.value = '';
+  inputCodigo.dispatchEvent(new Event('input',  { bubbles: true }));
+
+  // Escribir el código simulando eventos nativos (para que jQuery/Struts lo detecte)
+  const nativeSetter = Object.getOwnPropertyDescriptor(
     window.HTMLInputElement.prototype, 'value'
   )?.set;
-  if (nativeInputSetter) nativeInputSetter.call(inputCodigo, codigo);
+  if (nativeSetter) nativeSetter.call(inputCodigo, codigo);
   inputCodigo.dispatchEvent(new Event('input',  { bubbles: true }));
   inputCodigo.dispatchEvent(new Event('change', { bubbles: true }));
 
-  // Pulsar botón "Filtrar"
+  // 3. Pulsar el botón "Filtrar"
   const btnFiltrar = Array.from(document.querySelectorAll('button'))
     .find(b => /^filtrar$/i.test(b.textContent.trim()));
-  if (!btnFiltrar) throw new Error('Botón Filtrar no encontrado');
+  if (!btnFiltrar) throw new Error('Botón "Filtrar" no encontrado');
   btnFiltrar.click();
 
-  // Esperar a que la tabla se actualice (aparezca al menos 1 fila)
-  await waitFor(() => {
-    const filas = document.querySelectorAll(
-      'table.listadoComunicaciones tbody tr, table.dataTable tbody tr'
-    );
-    // Excluir fila "sin resultados"
-    return filas.length > 0 && !/sin resultado|no hay/i.test(filas[0]?.textContent);
-  }, TIMEOUT_FILTRO_MS);
+  // 4. Esperar a que la tabla muestre exactamente 1 fila (la comunicación buscada)
+  await waitFor(() => contarFilas() === 1, TIMEOUT_FILTRO_MS);
 }
 
 // ── Paso 2: Abrir modal de información ──────────────────────────────────────
