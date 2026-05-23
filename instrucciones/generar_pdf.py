@@ -372,25 +372,7 @@ def construir():
         "obtendrás esta estructura de carpetas:", cuerpo,
     ))
 
-    lineas_arbol = [
-        "BandeJA-Downloader-vX.X\\",
-        "+-- servidor\\",
-        "|   `-- bandeja-server.exe",
-        "+-- extension\\",
-        "|   `-- manifest.json, background.js, ...",
-        "`-- instrucciones\\",
-        "    `-- BandeJA-Downloader-Instrucciones.pdf",
-    ]
-    filas_arbol = [[Paragraph(l, mono)] for l in lineas_arbol]
-    t_arbol = Table(filas_arbol, colWidths=[15 * cm])
-    t_arbol.setStyle(TableStyle([
-        ("BACKGROUND",   (0, 0), (-1, -1), colors.HexColor("#f0f0f0")),
-        ("BOX",          (0, 0), (-1, -1), 0.5, colors.HexColor("#aaaaaa")),
-        ("TOPPADDING",   (0, 0), (-1, -1), 1),
-        ("BOTTOMPADDING",(0, 0), (-1, -1), 1),
-        ("LEFTPADDING",  (0, 0), (-1, -1), 8),
-    ]))
-    historia.append(t_arbol)
+    historia.append(captura("Tree.jpg", ancho=10 * cm))
     historia.append(Spacer(1, 8))
 
     # Glosario de ficheros
@@ -464,6 +446,15 @@ def construir():
     historia.append(Spacer(1, 6))
     historia.append(captura("Extensión_cargada.jpg"))
     historia.append(Spacer(1, 8))
+    historia.append(Paragraph(
+        "<b>Importante — pinear la extensión:</b> para acceder al popup "
+        "desde la barra de Chrome, haz clic en el icono del puzzle "
+        "(esquina superior derecha), localiza <b>BandeJA Downloader</b> "
+        "y pulsa el icono del pin. El icono de la extensión quedará "
+        "visible de forma permanente en la barra.",
+        nota,
+    ))
+    historia.append(Spacer(1, 8))
 
     # ── Paso 3 ────────────────────────────────────────────────────────────
     historia.append(sep())
@@ -491,32 +482,13 @@ def construir():
 
     # ── Paso 5 ────────────────────────────────────────────────────────────
     historia.append(sep())
-    historia.append(Paragraph("Paso 5 — Cargar el CSV en el popup", h2))
+    historia.append(Paragraph("Paso 5 — Seleccionar carpeta destino", h2))
     historia.append(bala(
         "Hacer clic en el icono de la extensión en la barra de Chrome"
     ))
+    historia.append(captura("Boton_extension_pulsado.jpg", ancho=10 * cm))
     historia.append(bala(
-        "Pulsar <b>\"Cargar CSV de BandeJA\"</b> y seleccionar el fichero exportado"
-    ))
-    historia.append(bala(
-        "El contador «Pendiente» se actualiza con los expedientes cargados"
-    ))
-    historia.append(bala("Las descargas arrancan automáticamente"))
-    historia.append(Spacer(1, 6))
-    historia.append(mockup_popup(
-        total=12, pendiente=9, en_curso=1, ok=2, error=0,
-        conectado=True, pausado=False,
-        destino="Sin carpeta configurada",
-        feedback="12 nuevos expedientes cargados",
-        titulo_mockup="Popup tras cargar el CSV — descargas en curso",
-    ))
-    historia.append(Spacer(1, 8))
-
-    # ── Paso 6 ────────────────────────────────────────────────────────────
-    historia.append(sep())
-    historia.append(Paragraph("Paso 6 — Seleccionar carpeta destino", h2))
-    historia.append(bala(
-        "En el popup, pulsar <b>\"Seleccionar carpeta destino…\"</b>"
+        "Pulsar <b>\"Seleccionar carpeta destino…\"</b>"
     ))
     historia.append(bala(
         "Se abre un diálogo de Windows para elegir la carpeta "
@@ -533,11 +505,40 @@ def construir():
     ))
     historia.append(Spacer(1, 6))
     historia.append(mockup_popup(
-        total=12, pendiente=7, en_curso=1, ok=4, error=0,
+        total=0, pendiente=0, en_curso=0, ok=0, error=0,
         conectado=True, pausado=False,
         destino="C:\\Users\\Usuario\\Descargas\\BandeJA",
-        titulo_mockup="Popup con carpeta destino configurada",
+        titulo_mockup="Popup — carpeta destino configurada antes de cargar el CSV",
     ))
+    historia.append(Spacer(1, 8))
+
+    # ── Paso 6 ────────────────────────────────────────────────────────────
+    historia.append(sep())
+    historia.append(Paragraph("Paso 6 — Cargar el CSV en el popup", h2))
+    historia.append(bala(
+        "Pulsar <b>\"Cargar CSV de BandeJA\"</b> y seleccionar el fichero exportado"
+    ))
+    historia.append(bala(
+        "El contador «Pendiente» se actualiza con los expedientes cargados"
+    ))
+    historia.append(bala("Las descargas arrancan automáticamente"))
+    historia.append(Spacer(1, 6))
+    historia.append(mockup_popup(
+        total=12, pendiente=9, en_curso=1, ok=2, error=0,
+        conectado=True, pausado=False,
+        destino="C:\\Users\\Usuario\\Descargas\\BandeJA",
+        feedback="12 nuevos expedientes cargados",
+        titulo_mockup="Popup tras cargar el CSV — descargas en curso",
+    ))
+    historia.append(Spacer(1, 8))
+    historia.append(Paragraph(
+        "El servidor muestra en tiempo real el estado de cada expediente "
+        "en la columna Estado, junto con la hora de finalización y el "
+        "nombre del fichero ZIP descargado.",
+        cuerpo,
+    ))
+    historia.append(Spacer(1, 6))
+    historia.append(captura("Server_con_listado.jpg"))
     historia.append(Spacer(1, 8))
 
     # ── Paso 7 ────────────────────────────────────────────────────────────
@@ -547,8 +548,11 @@ def construir():
         "Los contadores del popup se actualizan solos cada 2 segundos"
     ))
     historia.append(bala(
-        "Cuando todos los expedientes estén completados, "
-        "aparece una notificación de Windows"
+        "Durante el proceso y al finalizar, la aplicación muestra "
+        "<b>notificaciones toast de Windows</b> (las alertas emergentes "
+        "de la esquina inferior derecha del escritorio) con el resultado "
+        "de cada expediente y un resumen final con el total de "
+        "completados, errores y expedientes sin documentos"
     ))
     historia.append(bala(
         "Pulsar <b>\"Descargar resultados CSV\"</b> para obtener el informe final "
