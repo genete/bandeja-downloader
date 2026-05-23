@@ -36,7 +36,7 @@ class Estado(str, Enum):
 
 
 # Tiempo máximo que un trabajo puede estar EN_CURSO antes de considerarse atascado
-_TIMEOUT_EN_CURSO_SEG = 5 * 60  # 5 minutos
+_TIMEOUT_EN_CURSO_SEG = 2 * 60  # 2 minutos
 
 
 @dataclass
