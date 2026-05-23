@@ -103,8 +103,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       break;
 
     case 'DOWNLOAD_SUCCESS':
-      // Éxito rápido detectado por DOM — posible que onChanged llegue después (no-op)
-      finishJob('ok', msg.filename || '');
+      // Señal DOM de que el botón reapareció — no usamos esto como éxito,
+      // chrome.downloads.onChanged es la única fuente de verdad
+      break;
+
+    case 'DOWNLOAD_STARTED':
+      // Si chrome.downloads.onCreated no dispara en 15s, la descarga nunca se inició
+      if (activeJob) {
+        activeJob.noCreateTimeout = setTimeout(() => {
+          if (activeJob && activeJob.downloadId === null) {
+            finishJob('error', 'La descarga no se inició (sin evento Chrome en 15s)');
+          }
+        }, 15_000);
+      }
       break;
 
     case 'DOWNLOAD_ERROR':
@@ -120,12 +131,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 // ── Eventos de descarga de Chrome ────────────────────────────────────────────
 
 chrome.downloads.onCreated.addListener((item) => {
-  if (activeJob && activeJob.downloadId === null) {
-    // Asociar la primera descarga creada con el trabajo activo
-    activeJob.downloadId = item.id;
-    activeJob.filename   = item.filename || '';
-    console.log('[BandeJA] Descarga Chrome registrada:', item.id, item.filename);
+  if (!activeJob || activeJob.downloadId !== null) return;
+
+  // Verificar que el fichero descargado corresponde al código activo
+  // Formato esperado: documentos_EXT_2026_0000000003004075.zip
+  const codigoEnFilename = activeJob.codigo.replace(/\//g, '_');
+  if (!item.filename.includes(codigoEnFilename)) {
+    console.warn('[BandeJA] onCreated ignorado — no coincide con código activo:', item.filename, '!=', codigoEnFilename);
+    return;
   }
+
+  activeJob.downloadId = item.id;
+  activeJob.filename   = item.filename || '';
+  if (activeJob.noCreateTimeout) clearTimeout(activeJob.noCreateTimeout);
+  console.log('[BandeJA] Descarga Chrome registrada:', item.id, item.filename);
 });
 
 chrome.downloads.onChanged.addListener((delta) => {
@@ -149,7 +168,8 @@ function finishJob(status, detail) {
   if (!activeJob) return;
   const codigo   = activeJob.codigo;
   const filename = activeJob.filename || '';
-  if (activeJob.timeoutId) clearTimeout(activeJob.timeoutId);
+  if (activeJob.timeoutId)      clearTimeout(activeJob.timeoutId);
+  if (activeJob.noCreateTimeout) clearTimeout(activeJob.noCreateTimeout);
   activeJob = null;
   reportResult(codigo, status, detail, filename);
 }
