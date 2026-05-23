@@ -5,6 +5,19 @@ const TIMEOUT_FILTRO_MS   = 15_000;   // espera máx para que actualice la lista
 const TIMEOUT_MODAL_MS    = 10_000;   // espera máx para que abra el modal
 const TIMEOUT_DESCARGA_MS = 120_000;  // espera máx para que termine el ZIP (2 min)
 
+// ── Ejecutar código en el contexto de la página (no del content script) ─────
+// Los content scripts viven en un "mundo aislado": tienen acceso al DOM pero NO
+// a las funciones globales de BandeJA (descargarZip, abrirModal, etc.).
+// Inyectar un <script> es la forma estándar de llamar código del contexto de página
+// y evita errores CSP al hacer clic en <a href="javascript:...">.
+
+function ejecutarEnPagina(codigoJs) {
+  const script = document.createElement('script');
+  script.textContent = codigoJs;
+  (document.head || document.documentElement).appendChild(script);
+  script.remove();
+}
+
 // ── Utilidad: esperar condición con timeout ──────────────────────────────────
 
 function waitFor(conditionFn, timeoutMs) {
@@ -172,17 +185,17 @@ async function abrirModalInfo() {
     } catch { /* seguimos */ }
   }
 
-  // ── Intento 3: llamar abrirModal() con el ID interno extraído del DOM ─────────
-  // BandeJA guarda el ID en atributos data-* o en onclicks de la fila
+  // ── Intento 3: llamar abrirModal() inyectando código en el contexto de página ─
+  // Los content scripts no tienen acceso a las funciones globales de BandeJA,
+  // pero sí pueden inyectar un <script> que las llame.
   const onclicks = Array.from(primeraFila.querySelectorAll('[onclick]'))
     .map(el => el.getAttribute('onclick'));
   const idMatch = onclicks.join(' ').match(/abrirModal\([^,]+,\s*'?(\d+)'?\)/);
 
   if (idMatch) {
     const idInterno = idMatch[1];
-    console.log('[BandeJA] Llamando abrirModal con ID interno:', idInterno);
-    // eslint-disable-next-line no-undef
-    if (typeof abrirModal === 'function') abrirModal('informacion', idInterno);
+    console.log('[BandeJA] Inyectando abrirModal con ID interno:', idInterno);
+    ejecutarEnPagina(`abrirModal('informacion', '${idInterno}');`);
     try {
       await waitFor(modalAbierto, 4_000);
       return;
@@ -206,8 +219,9 @@ async function descargarYEsperar() {
   // Lanzar el observador de toast de error ANTES de pulsar
   const toastPromise = watchForErrorToast(TIMEOUT_DESCARGA_MS);
 
-  // Pulsar descarga
-  btnDescargar.click();
+  // Pulsar descarga — inyectamos en el contexto de página para evitar el error CSP
+  // que bloquea clic en <a href="javascript:..."> desde el content script
+  ejecutarEnPagina('mostrarEspera = false; descargarZip();');
 
   // Esperar a que el spinner de "Descargando..." aparezca (señal de que la petición salió)
   try {
