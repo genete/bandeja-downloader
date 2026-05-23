@@ -26,3 +26,43 @@ async function actualizarEstado() {
 }
 
 actualizarEstado();
+
+// ── Carga de CSV desde el popup ──────────────────────────────────────────────
+
+const inputCsv   = document.getElementById('input-csv');
+const btnCsv     = document.getElementById('btn-csv');
+const feedback   = document.getElementById('csv-feedback');
+
+btnCsv.addEventListener('click', () => inputCsv.click());
+
+inputCsv.addEventListener('change', async () => {
+  const file = inputCsv.files[0];
+  if (!file) return;
+
+  feedback.textContent = 'Enviando…';
+  feedback.style.color = '#555';
+
+  try {
+    const buffer = await file.arrayBuffer();
+    const res = await fetch(`${SERVER_URL}/api/load-csv`, {
+      method: 'POST',
+      body: buffer,
+      signal: AbortSignal.timeout(10_000),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      feedback.textContent = `✓ ${data.nuevos} códigos añadidos`;
+      feedback.style.color = '#087021';
+      actualizarEstado();
+    } else {
+      feedback.textContent = `✗ ${data.error}`;
+      feedback.style.color = '#c0392b';
+    }
+  } catch {
+    feedback.textContent = '✗ Servidor no disponible';
+    feedback.style.color = '#c0392b';
+  }
+
+  // Limpiar para permitir seleccionar el mismo fichero otra vez
+  inputCsv.value = '';
+});

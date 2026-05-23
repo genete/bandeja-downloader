@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -70,6 +70,25 @@ async def get_status():
     if not _cola:
         return {}
     return {**_cola.stats, "pausado": _pausado}
+
+
+@app.post("/api/load-csv")
+async def load_csv(request: Request):
+    """El popup envía el contenido de un CSV de BandeJA para cargar la cola."""
+    if not _cola:
+        return {"ok": False, "error": "Cola no inicializada"}
+    body = await request.body()
+    # El popup envía el fichero tal cual; probar UTF-8 y Latin-1
+    for enc in ("utf-8-sig", "utf-8", "latin-1"):
+        try:
+            texto = body.decode(enc)
+            break
+        except UnicodeDecodeError:
+            continue
+    else:
+        return {"ok": False, "error": "No se pudo decodificar el CSV"}
+    nuevos = _cola.cargar_texto_csv(texto)
+    return {"ok": True, "nuevos": nuevos}
 
 
 @app.post("/api/result")

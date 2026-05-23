@@ -4,13 +4,18 @@ Gestión de la cola de trabajos de descarga.
 from __future__ import annotations
 
 import csv
+import io
 import logging
+import re
 from . import notifier
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Optional
+
+# Patrón de código BandeJA: EXT/2026/0000000003004075
+_CODIGO_RE = re.compile(r'^[A-Z]{2,3}/\d{4}/\d+$')
 
 # Log en la raíz del proyecto (D:/BANDEJADL/bandeja_downloader.log)
 _LOG_PATH = Path(__file__).parent.parent / "bandeja_downloader.log"
@@ -53,23 +58,62 @@ class Cola:
     # ── Carga ────────────────────────────────────────────────────────────────
 
     def cargar_csv(self, ruta: Path) -> int:
+        """Carga códigos desde un fichero CSV (formato simple o exportación BandeJA)."""
+        # Intentar UTF-8-BOM primero; si falla, Latin-1 (frecuente en exportaciones Windows)
+        for enc in ("utf-8-sig", "latin-1"):
+            try:
+                with open(ruta, newline="", encoding=enc) as f:
+                    return self._cargar_reader(csv.reader(f))
+            except UnicodeDecodeError:
+                continue
+        return 0
+
+    def cargar_texto_csv(self, texto: str) -> int:
+        """Carga códigos desde el contenido de un CSV ya leído como texto."""
+        reader = csv.reader(io.StringIO(texto))
+        return self._cargar_reader(reader)
+
+    def _cargar_reader(self, reader) -> int:
         """
-        Carga códigos desde un CSV (primera columna).
-        Ignora duplicados y líneas vacías.
-        Devuelve el número de trabajos nuevos añadidos.
+        Extrae códigos de un csv.reader.
+        Detecta automáticamente el formato:
+          - Exportación BandeJA: 7 columnas, código en col 1
+          - Simple: una columna con el código directamente
         """
         codigos_existentes = {t.codigo for t in self.trabajos}
-        nuevos = 0
-        with open(ruta, newline="", encoding="utf-8-sig") as f:
-            for fila in csv.reader(f):
-                if not fila:
+        nuevos   = 0
+        col      = None   # índice de columna del código (se detecta en la primera fila válida)
+
+        for fila in reader:
+            if not fila:
+                continue
+
+            # Detectar columna en la primera fila con datos reales
+            if col is None:
+                col = self._detectar_columna(fila)
+                # Si la fila detectada es cabecera (no es un código), saltarla
+                if not _CODIGO_RE.match(fila[col].strip()):
                     continue
-                codigo = fila[0].strip()
-                if codigo and codigo not in codigos_existentes:
-                    self.trabajos.append(Trabajo(codigo=codigo))
-                    codigos_existentes.add(codigo)
-                    nuevos += 1
+
+            if col >= len(fila):
+                continue
+
+            codigo = fila[col].strip()
+            if _CODIGO_RE.match(codigo) and codigo not in codigos_existentes:
+                self.trabajos.append(Trabajo(codigo=codigo))
+                codigos_existentes.add(codigo)
+                nuevos += 1
+
         return nuevos
+
+    @staticmethod
+    def _detectar_columna(fila: list[str]) -> int:
+        """Devuelve el índice de la columna que contiene el código BandeJA."""
+        for i, celda in enumerate(fila):
+            if _CODIGO_RE.match(celda.strip()):
+                return i
+        # Sin coincidencia directa (fila de cabecera): usar col 1 si hay ≥2 columnas, si no col 0
+        return 1 if len(fila) > 1 else 0
 
     # ── Control de trabajos ──────────────────────────────────────────────────
 

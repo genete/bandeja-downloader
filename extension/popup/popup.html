@@ -27,6 +27,29 @@
     }
     .conectado    { background: #d4edda; color: #155724; }
     .desconectado { background: #f8d7da; color: #721c24; }
+    #zona-csv {
+      margin-top: 12px;
+      border-top: 1px solid #dee2e6;
+      padding-top: 10px;
+    }
+    #btn-csv {
+      width: 100%;
+      padding: 6px;
+      background: #087021;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    #btn-csv:hover { background: #065a1a; }
+    #csv-feedback {
+      font-size: 11px;
+      margin-top: 5px;
+      text-align: center;
+      min-height: 14px;
+      color: #555;
+    }
   </style>
 </head>
 <body>
@@ -37,6 +60,13 @@
   <div class="stat"><span class="label">Completados: </span><span class="val ok" id="ok">—</span></div>
   <div class="stat"><span class="label">Errores: </span><span class="val error" id="error">—</span></div>
   <div id="estado-servidor" class="desconectado">Servidor no disponible</div>
+
+  <div id="zona-csv">
+    <input type="file" id="input-csv" accept=".csv" style="display:none">
+    <button id="btn-csv">Cargar CSV de BandeJA</button>
+    <div id="csv-feedback"></div>
+  </div>
+
   <script src="popup.js"></script>
 </body>
 </html>
