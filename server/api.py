@@ -120,6 +120,14 @@ async def export_csv():
     )
 
 
+@app.post("/api/pause-toggle")
+async def pause_toggle():
+    """Alterna el estado de pausa de la cola."""
+    global _pausado
+    _pausado = not _pausado
+    return {"pausado": _pausado}
+
+
 @app.get("/api/config")
 async def get_config():
     """Devuelve la configuración actual (directorio destino)."""

@@ -18,6 +18,15 @@ async function actualizarEstado() {
     el.textContent = 'Servidor activo ✓';
     el.className = 'conectado';
 
+    const btnPausa = document.getElementById('btn-pausa');
+    if (data.pausado) {
+      btnPausa.textContent = '▶ Reanudar';
+      btnPausa.className = 'pausado';
+    } else {
+      btnPausa.textContent = '⏸ Pausar';
+      btnPausa.className = 'reanudando';
+    }
+
   } catch {
     const el = document.getElementById('estado-servidor');
     el.textContent = 'Servidor no disponible';
@@ -68,6 +77,28 @@ inputCsv.addEventListener('change', async () => {
 
   // Limpiar para permitir seleccionar el mismo fichero otra vez
   inputCsv.value = '';
+});
+
+// ── Pausar / Reanudar ────────────────────────────────────────────────────────
+
+document.getElementById('btn-pausa').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-pausa');
+  btn.disabled = true;
+  btn.textContent = '…';
+  try {
+    const res = await fetch(`${SERVER_URL}/api/pause-toggle`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    await actualizarEstado();
+  } catch (e) {
+    feedback.textContent = '✗ Error al pausar: ' + (e?.message ?? e);
+    feedback.style.color = '#c0392b';
+    await actualizarEstado();  // restaurar estado real
+  } finally {
+    btn.disabled = false;
+  }
 });
 
 // ── Directorio destino ───────────────────────────────────────────────────────
