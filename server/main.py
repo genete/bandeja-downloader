@@ -1,19 +1,22 @@
 """
-Punto de entrada — formulario Tkinter para configuración + TUI Textual para progreso.
+Punto de entrada — formulario Tkinter persistente + TUI Textual para progreso.
+
+Flujo:
+  formulario.mostrar() → oculta ventana → TUI Textual (Playwright en hilo)
+  → cola terminada → TUI se cierra → formulario.mostrar() de nuevo
+  → usuario cierra el formulario → fin
 """
 from __future__ import annotations
 
 import asyncio
 import threading
-from pathlib import Path
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.widgets import DataTable, Footer, Header, Static
 
-from .config import PENDING_CSV
 from .downloader import Cola, Estado, logger as dl_logger
-from .gui import mostrar_formulario
+from .gui import FormularioBandeJA
 
 ICONOS = {
     Estado.PENDIENTE:      "⏳",
@@ -51,9 +54,8 @@ class BandeJAApp(App):
     """
 
     BINDINGS = [
-        Binding("q", "quit",       "Salir"),
-        Binding("p", "pausar",     "Pausar/Reanudar"),
-        Binding("n", "nuevo_lote", "Nuevo lote"),
+        Binding("q", "quit",   "Salir al formulario"),
+        Binding("p", "pausar", "Pausar/Reanudar"),
     ]
 
     def __init__(self, config: dict) -> None:
@@ -93,9 +95,6 @@ class BandeJAApp(App):
         self.notify("PAUSADO ⏸" if self.pausado else "ACTIVO ▶")
         self._actualizar_pie()
 
-    def action_nuevo_lote(self) -> None:
-        self.exit("nuevo_lote")
-
     # ── Playwright en hilo separado ──────────────────────────────────────────
 
     def _iniciar_playwright(self) -> None:
@@ -122,14 +121,10 @@ class BandeJAApp(App):
                     )
 
             asyncio.run(_async())
-            self.call_from_thread(
-                lambda: self.notify(
-                    "✅ Cola completada — [n] nuevo lote  [q] salir", timeout=0
-                )
-            )
+            # Cola terminada — cerrar la TUI para volver al formulario
+            self.call_from_thread(self.exit)
 
-        hilo = threading.Thread(target=run, daemon=True, name="playwright")
-        hilo.start()
+        threading.Thread(target=run, daemon=True, name="playwright").start()
 
     # ── Refresco de UI ───────────────────────────────────────────────────────
 
@@ -167,13 +162,13 @@ class BandeJAApp(App):
 # ── Entrada principal ────────────────────────────────────────────────────────
 
 def main() -> None:
+    formulario = FormularioBandeJA()
     while True:
-        config = mostrar_formulario()
+        config = formulario.mostrar()
         if config is None:
             break
-        resultado = BandeJAApp(config).run()
-        if resultado != "nuevo_lote":
-            break
+        BandeJAApp(config).run()
+    formulario.destroy()
 
 
 if __name__ == "__main__":
