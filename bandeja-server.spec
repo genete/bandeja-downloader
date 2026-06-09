@@ -10,24 +10,10 @@ a = Analysis(
     binaries=textual_binaries,
     datas=textual_datas,
     hiddenimports=[
-        # uvicorn usa importación dinámica para loops y protocolos
-        'uvicorn.logging',
-        'uvicorn.loops',
-        'uvicorn.loops.auto',
-        'uvicorn.loops.asyncio',
-        'uvicorn.protocols',
-        'uvicorn.protocols.http',
-        'uvicorn.protocols.http.auto',
-        'uvicorn.protocols.http.h11_impl',
-        'uvicorn.protocols.websockets',
-        'uvicorn.protocols.websockets.auto',
-        'uvicorn.lifespan',
-        'uvicorn.lifespan.on',
-        # tkinter para el diálogo de selección de carpeta
+        # tkinter para el formulario de configuración
         'tkinter',
         'tkinter.filedialog',
-        # pydantic v2 usa importación dinámica para validadores
-        'pydantic.deprecated.class_validators',
+        'tkinter.ttk',
         *textual_hidden,
     ],
     hookspath=[],
