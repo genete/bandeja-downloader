@@ -158,7 +158,41 @@ El nombre sugerido del fichero será el ZIP con los documentos.
 
 ---
 
-## 6. Casos especiales a gestionar
+## 6. Acción "Finalizar comunicación" (opcional)
+
+Accesible desde el modal de Información detallada → desplegable "Más acciones".
+
+### Selectores
+
+```python
+# 1. Abrir desplegable
+page.get_by_role("button", name="Más acciones").click()
+
+# 2. Click en la opción del dropdown
+page.get_by_role("link", name="Finalizar").click()
+
+# 3. Esperar modal de confirmación
+#    heading "Finalizar comunicación"
+#    text    "¿Está seguro que desea finalizar la comunicación?"
+#    button  "VOLVER"    ← cancelar
+#    button  "Finalizar" ← confirmar
+page.wait_for_selector("text=Finalizar comunicación")
+
+# 4. Confirmar
+page.locator('div:has(h4:text("Finalizar comunicación")) button:text("Finalizar")').click()
+
+# 5. Esperar que el modal de confirmación desaparezca
+page.wait_for_selector("text=Finalizar comunicación", state="hidden")
+```
+
+### Notas
+- La acción es **reversible** pero deja trazas en el historial de la comunicación.
+- Solo aparece en comunicaciones con estado ASIGNADO (tienen acciones disponibles).
+- Se ejecuta **después** de la descarga del ZIP, antes de cerrar el modal principal.
+
+---
+
+## 7. Casos especiales a gestionar
 
 - **Sin documentos**: la tabla de documentos aparece vacía → detectar con `count() == 0` en las filas
 - **Spinner de espera**: `img "Espere por favor..."` → esperar a que desaparezca tras filtrar

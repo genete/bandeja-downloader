@@ -30,7 +30,8 @@ class FormularioBandeJA:
         self._usuario_var  = tk.StringVar()
         self._password_var = tk.StringVar()
         self._puesto_var   = tk.StringVar()
-        self._headless_var = tk.BooleanVar(value=False)
+        self._headless_var  = tk.BooleanVar(value=False)
+        self._finalizar_var = tk.BooleanVar(value=False)
         self._navegador_var = tk.StringVar(value="msedge")
 
         self._build()
@@ -136,6 +137,15 @@ class FormularioBandeJA:
         ).grid(row=fila, column=0, columnspan=3, sticky="w", pady=2)
         fila += 1
 
+        # — Finalizar —
+        ttk.Checkbutton(
+            frame, text="Finalizar comunicación tras descargar", variable=self._finalizar_var
+        ).grid(row=fila, column=0, columnspan=2, sticky="w", pady=2)
+        ttk.Label(frame, text="⚠ deja trazas", foreground="darkorange").grid(
+            row=fila, column=2, sticky="w"
+        )
+        fila += 1
+
         # — Navegador —
         ttk.Label(frame, text="Navegador:").grid(row=fila, column=0, sticky="w", pady=4)
         nav_frame = ttk.Frame(frame)
@@ -180,8 +190,9 @@ class FormularioBandeJA:
             "usuario":   self._usuario_var.get().strip(),
             "password":  self._password_var.get(),
             "puesto":    self._puesto_var.get().strip(),
-            "headless":  self._headless_var.get(),
-            "navegador": self._navegador_var.get(),
+            "headless":   self._headless_var.get(),
+            "finalizar":  self._finalizar_var.get(),
+            "navegador":  self._navegador_var.get(),
         }
         self._root.withdraw()
         self._root.quit()

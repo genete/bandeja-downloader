@@ -118,6 +118,7 @@ class BandeJAApp(App):
                         config["destino"],
                         log_fn=dl_logger.info,
                         parar_fn=lambda: self.pausado,
+                        finalizar=config.get("finalizar", False),
                     )
 
             asyncio.run(_async())

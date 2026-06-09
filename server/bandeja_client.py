@@ -99,12 +99,14 @@ class BandejaClient:
         self,
         cola: Cola,
         destino: Path,
-        log_fn:  Callable[[str], None] | None = None,
-        parar_fn: Callable[[], bool]  | None = None,
+        log_fn:   Callable[[str], None] | None = None,
+        parar_fn: Callable[[], bool]   | None = None,
+        finalizar: bool = False,
     ) -> None:
         """
         Itera sobre los trabajos pendientes de la cola hasta que no queden más
         o parar_fn() devuelva True.
+        finalizar: si True, ejecuta "Finalizar comunicación" tras cada descarga OK.
         """
         destino.mkdir(parents=True, exist_ok=True)
         _log   = log_fn   or (lambda _: None)
@@ -120,7 +122,7 @@ class BandejaClient:
             _log(f"Procesando: {codigo}")
 
             try:
-                nombre_zip = await self._procesar_codigo(codigo, destino)
+                nombre_zip = await self._procesar_codigo(codigo, destino, finalizar)
                 if nombre_zip:
                     cola.completar(codigo, Estado.OK, zip_filename=nombre_zip)
                     _log(f"OK {codigo} → {nombre_zip}")
@@ -136,9 +138,12 @@ class BandejaClient:
 
     # ── Acciones sobre la página ─────────────────────────────────────────────
 
-    async def _procesar_codigo(self, codigo: str, destino: Path) -> Optional[str]:
+    async def _procesar_codigo(
+        self, codigo: str, destino: Path, finalizar: bool = False
+    ) -> Optional[str]:
         """
         Filtra por código, abre el modal, descarga el ZIP y cierra.
+        Si finalizar=True, ejecuta la acción Finalizar antes de cerrar.
         Devuelve el nombre del fichero o None si no hay documentos.
         """
         await self._filtrar_codigo(codigo)
@@ -151,6 +156,10 @@ class BandejaClient:
             return None
 
         nombre = await self._descargar_zip(btn_descarga, destino)
+
+        if finalizar:
+            await self._finalizar_comunicacion()
+
         await self._cerrar_modal()
         return nombre
 
@@ -180,6 +189,30 @@ class BandejaClient:
         nombre = download.suggested_filename or f"bandeja_{asyncio.get_event_loop().time():.0f}.zip"
         await download.save_as(destino / nombre)
         return nombre
+
+    async def _finalizar_comunicacion(self) -> None:
+        """
+        Ejecuta la acción Finalizar desde el modal de información detallada.
+        Flujo: "Más acciones" → link "Finalizar" → modal confirmación → button "Finalizar".
+        """
+        # Abrir el desplegable "Más acciones"
+        await self.page.get_by_role("button", name="Más acciones").click()
+
+        # Click en "Finalizar" dentro del dropdown
+        await self.page.get_by_role("link", name="Finalizar").click()
+
+        # Esperar modal de confirmación
+        await self.page.wait_for_selector("text=Finalizar comunicación", timeout=5_000)
+
+        # Confirmar — hay que ser preciso: el botón "Finalizar" dentro del modal de confirmación
+        await self.page.locator(
+            'div:has(h4:text("Finalizar comunicación")) button:text("Finalizar")'
+        ).click()
+
+        # Esperar que el modal de confirmación desaparezca
+        await self.page.wait_for_selector(
+            "text=Finalizar comunicación", state="hidden", timeout=10_000
+        )
 
     async def _cerrar_modal(self) -> None:
         try:
