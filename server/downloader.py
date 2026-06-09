@@ -163,23 +163,30 @@ class Cola:
             trabajo.zip_filename = zip_filename
             trabajo.timestamp    = datetime.now()
             logger.info("%s | %s | %s | %s", codigo, estado.value, zip_filename, detalle)
-            self._notificar(codigo, estado, detalle)
+            self._notificar(codigo, estado, detalle, zip_filename)
             if self._contar(Estado.PENDIENTE) == 0 and self._contar(Estado.EN_CURSO) == 0:
                 self._cola_completada()
 
-    def _notificar(self, codigo: str, estado: Estado, detalle: str) -> None:
+    def _notificar(self, codigo: str, estado: Estado, detalle: str, zip_filename: str = "") -> None:
         pendientes = self._contar(Estado.PENDIENTE)
         en_curso   = self._contar(Estado.EN_CURSO)
         restantes  = pendientes + en_curso
 
         if estado == Estado.OK:
-            titulo  = f"✓ Descargado"
+            if zip_filename and detalle == "✓ finalizado":
+                titulo = "✓ Descargado + Finalizado"
+            elif zip_filename:
+                titulo = "✓ Descargado"
+            elif detalle == "Finalizado":
+                titulo = "✓ Finalizado"
+            else:
+                titulo = "✓ OK"
             mensaje = f"{codigo}\nQuedan {restantes}"
         elif estado == Estado.SIN_DOCUMENTOS:
-            titulo  = f"— Sin documentos"
+            titulo  = "— Sin documentos"
             mensaje = f"{codigo}\nQuedan {restantes}"
         else:
-            titulo  = f"✗ Error"
+            titulo  = "✗ Error"
             mensaje = f"{codigo}\n{detalle[:80] if detalle else ''}"
 
         notifier.notificar(titulo, mensaje)
