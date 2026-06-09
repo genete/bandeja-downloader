@@ -264,7 +264,6 @@ class Cola:
         self._ultimo_export = self.exportar_csv()
         self.trabajos.clear()
         self.cabecera.clear()
-        logger.info("Cola vaciada — lista para nuevo CSV")
 
     def _resetear_atascados(self) -> None:
         """Devuelve a PENDIENTE los trabajos EN_CURSO que superan el timeout."""
@@ -273,7 +272,6 @@ class Cola:
             if t.estado == Estado.EN_CURSO and t.started_at:
                 segundos = (ahora - t.started_at).total_seconds()
                 if segundos > _TIMEOUT_EN_CURSO_SEG:
-                    logger.info("%s | reset_atascado | llevaba %.0fs EN_CURSO", t.codigo, segundos)
                     t.estado     = Estado.PENDIENTE
                     t.started_at = None
 
