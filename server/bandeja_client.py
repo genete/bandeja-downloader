@@ -102,11 +102,13 @@ class BandejaClient:
         log_fn:   Callable[[str], None] | None = None,
         parar_fn: Callable[[], bool]   | None = None,
         finalizar: bool = False,
+        descargar: bool = True,
     ) -> None:
         """
         Itera sobre los trabajos pendientes de la cola hasta que no queden más
         o parar_fn() devuelva True.
-        finalizar: si True, ejecuta "Finalizar comunicación" tras cada descarga OK.
+        descargar: si True, descarga el ZIP de cada comunicación.
+        finalizar: si True, ejecuta "Finalizar comunicación" tras procesar.
         """
         destino.mkdir(parents=True, exist_ok=True)
         _log   = log_fn   or (lambda _: None)
@@ -122,15 +124,21 @@ class BandejaClient:
             _log(f"Procesando: {codigo}")
 
             try:
-                nombre_zip = await self._procesar_codigo(codigo, destino, finalizar)
-                if nombre_zip:
-                    cola.completar(codigo, Estado.OK, zip_filename=nombre_zip)
-                    _log(f"OK {codigo} → {nombre_zip}")
-                else:
+                nombre_zip = await self._procesar_codigo(
+                    codigo, destino, finalizar=finalizar, descargar=descargar
+                )
+                if nombre_zip is None:
                     cola.completar(
                         codigo, Estado.SIN_DOCUMENTOS, detalle="Sin documentos adjuntos"
                     )
                     _log(f"Sin documentos: {codigo}")
+                elif nombre_zip:
+                    cola.completar(codigo, Estado.OK, zip_filename=nombre_zip)
+                    _log(f"OK {codigo} → {nombre_zip}")
+                else:  # "" — sin acción o finalizar sin descarga
+                    detalle = "Sin acción" if not descargar and not finalizar else "Finalizado"
+                    cola.completar(codigo, Estado.OK, detalle=detalle)
+                    _log(f"OK {codigo} ({detalle})")
             except Exception as exc:
                 cola.completar(codigo, Estado.ERROR, detalle=str(exc))
                 _log(f"Error {codigo}: {exc}")
@@ -139,29 +147,31 @@ class BandejaClient:
     # ── Acciones sobre la página ─────────────────────────────────────────────
 
     async def _procesar_codigo(
-        self, codigo: str, destino: Path, finalizar: bool = False
+        self, codigo: str, destino: Path, finalizar: bool = False, descargar: bool = True
     ) -> Optional[str]:
         """
-        Filtra por código, abre el modal, descarga el ZIP y cierra.
-        Si finalizar=True, ejecuta la acción Finalizar antes de cerrar.
-        Devuelve el nombre del fichero o None si no hay documentos.
+        Filtra por código, abre el modal y ejecuta las acciones configuradas.
+        Devuelve: nombre del ZIP si se descargó, "" si OK sin descarga, None si sin documentos.
         """
+        if not descargar and not finalizar:
+            return ""  # sin acción, no abrimos modal
+
         await self._filtrar_codigo(codigo)
         await self._abrir_modal(codigo)
 
-        # Comprobar si el botón de descarga está presente
-        btn_descarga = self.page.locator('a:has-text("Descargar documentos")')
-        if await btn_descarga.count() == 0:
-            await self._cerrar_modal()
-            return None
-
-        nombre = await self._descargar_zip(btn_descarga, destino)
+        nombre = None
+        if descargar:
+            btn_descarga = self.page.locator('a:has-text("Descargar documentos")')
+            if await btn_descarga.count() == 0:
+                await self._cerrar_modal()
+                return None
+            nombre = await self._descargar_zip(btn_descarga, destino)
 
         if finalizar:
             await self._finalizar_comunicacion()
 
         await self._cerrar_modal()
-        return nombre
+        return nombre or ""
 
     async def _filtrar_codigo(self, codigo: str) -> None:
         await self.page.get_by_role("button", name="Borrar filtros").click()

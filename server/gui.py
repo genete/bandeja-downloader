@@ -31,7 +31,8 @@ class FormularioBandeJA:
         self._password_var = tk.StringVar()
         self._puesto_var   = tk.StringVar()
         self._headless_var  = tk.BooleanVar(value=False)
-        self._finalizar_var = tk.BooleanVar(value=False)
+        self._descargar_var = tk.BooleanVar(value=True)
+        self._finalizar_var = tk.BooleanVar(value=True)
         self._navegador_var = tk.StringVar(value="msedge")
 
         self._build()
@@ -137,6 +138,12 @@ class FormularioBandeJA:
         ).grid(row=fila, column=0, columnspan=3, sticky="w", pady=2)
         fila += 1
 
+        # — Descargar documentos —
+        ttk.Checkbutton(
+            frame, text="Descargar documentos", variable=self._descargar_var
+        ).grid(row=fila, column=0, columnspan=3, sticky="w", pady=2)
+        fila += 1
+
         # — Finalizar —
         ttk.Checkbutton(
             frame, text="Finalizar comunicación tras descargar", variable=self._finalizar_var
@@ -183,6 +190,9 @@ class FormularioBandeJA:
         if not self._password_var.get():
             self._error_var.set("Introduce la contraseña.")
             return
+        if not self._descargar_var.get() and not self._finalizar_var.get():
+            self._error_var.set("Selecciona al menos una acción.")
+            return
 
         self._config = {
             "csv":       csv_path,
@@ -191,6 +201,7 @@ class FormularioBandeJA:
             "password":  self._password_var.get(),
             "puesto":    self._puesto_var.get().strip(),
             "headless":   self._headless_var.get(),
+            "descargar":  self._descargar_var.get(),
             "finalizar":  self._finalizar_var.get(),
             "navegador":  self._navegador_var.get(),
         }
