@@ -104,7 +104,7 @@ def mostrar_formulario() -> Optional[dict]:
 
     # — Navegador —
     ttk.Label(frame, text="Navegador:").grid(row=fila, column=0, sticky="w", pady=4)
-    navegador_var = tk.StringVar(value="chromium")
+    navegador_var = tk.StringVar(value="msedge")
     nav_frame = ttk.Frame(frame)
     nav_frame.grid(row=fila, column=1, columnspan=2, sticky="w")
     ttk.Radiobutton(nav_frame, text="Chromium", variable=navegador_var, value="chromium").pack(

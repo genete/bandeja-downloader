@@ -25,7 +25,7 @@ _TIMEOUT_DESCARGA_MS = 180_000
 class BandejaClient:
     """Sesión Playwright contra BandeJA. Usar como context manager async."""
 
-    def __init__(self, headless: bool = False, navegador: str = "chromium") -> None:
+    def __init__(self, headless: bool = False, navegador: str = "msedge") -> None:
         self._headless   = headless
         self._navegador  = navegador   # "chromium" o "msedge"
         self._pw         = None

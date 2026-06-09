@@ -21,3 +21,6 @@ bandeja_downloader.log
 .vscode/
 .idea/
 *.swp
+
+# Playwright MCP (logs y snapshots de sesión)
+.playwright-mcp/
