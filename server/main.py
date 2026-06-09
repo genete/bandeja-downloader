@@ -15,7 +15,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.widgets import DataTable, Footer, Header, Static
 
-from .downloader import Cola, Estado, logger as dl_logger
+from .downloader import Cola, Estado, registrar_inicio_sesion
 from .gui import FormularioBandeJA
 
 ICONOS = {
@@ -74,9 +74,7 @@ class BandeJAApp(App):
         yield Footer()
 
     def on_mount(self) -> None:
-        dl_logger.info("=" * 60)
-        dl_logger.info("NUEVA SESIÓN")
-        dl_logger.info("=" * 60)
+        registrar_inicio_sesion()
 
         tabla = self.query_one("#tabla", DataTable)
         tabla.add_columns("", "Código", "Estado", "Detalle", "Hora")
@@ -116,7 +114,6 @@ class BandeJAApp(App):
                     await cliente.procesar_cola(
                         self.cola,
                         config["destino"],
-                        log_fn=dl_logger.info,
                         parar_fn=lambda: self.pausado,
                         finalizar=config.get("finalizar", True),
                         descargar=config.get("descargar", True),

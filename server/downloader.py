@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import csv
 import io
-import logging
+import os
 import re
 import threading
 from . import notifier
@@ -20,14 +20,29 @@ _CODIGO_RE = re.compile(r'^(EXT|INT)/\d{4}/\d+$')
 
 from .config import BASE_DIR
 
-# Log junto al ejecutable (o en la raíz del proyecto en desarrollo)
-_LOG_PATH = BASE_DIR / "bandeja_downloader.log"
-_handler = logging.FileHandler(_LOG_PATH, encoding="utf-8")
-_handler.setFormatter(logging.Formatter("%(asctime)s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
-logger = logging.getLogger("bandeja")
-logger.setLevel(logging.INFO)
-logger.addHandler(_handler)
-logger.propagate = False
+# CSV de auditoría — junto al ejecutable, compartido entre usuarios
+# Separador ; para compatibilidad con Excel en configuración regional española
+_CSV_LOG_PATH = BASE_DIR / "bandeja_log.csv"
+_USUARIO      = os.environ.get("USERNAME", "desconocido")
+_COLUMNAS     = ["timestamp", "usuario", "codigo", "estado", "zip", "detalle"]
+
+
+def _log_csv(*valores) -> None:
+    """Añade una fila al CSV. Escribe cabecera si el fichero está vacío."""
+    try:
+        nuevo = not _CSV_LOG_PATH.exists() or _CSV_LOG_PATH.stat().st_size == 0
+        with open(_CSV_LOG_PATH, "a", newline="", encoding="utf-8-sig") as f:
+            w = csv.writer(f, delimiter=";")
+            if nuevo:
+                w.writerow(_COLUMNAS)
+            w.writerow(valores)
+    except OSError:
+        pass  # no interrumpir el proceso si el CSV no se puede escribir
+
+
+def registrar_inicio_sesion() -> None:
+    """Escribe una fila de marca de inicio de sesión en el CSV de auditoría."""
+    _log_csv(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), _USUARIO, "", "SESION_INICIO", "", "")
 
 
 class Estado(str, Enum):
@@ -162,7 +177,10 @@ class Cola:
             trabajo.detalle      = detalle
             trabajo.zip_filename = zip_filename
             trabajo.timestamp    = datetime.now()
-            logger.info("%s | %s | %s | %s", codigo, estado.value, zip_filename, detalle)
+            _log_csv(
+                trabajo.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                _USUARIO, codigo, estado.value, zip_filename, detalle,
+            )
             self._notificar(codigo, estado, detalle, zip_filename)
             if self._contar(Estado.PENDIENTE) == 0 and self._contar(Estado.EN_CURSO) == 0:
                 self._cola_completada()
@@ -210,9 +228,10 @@ class Cola:
         error   = self._contar(Estado.ERROR)
         sin_doc = self._contar(Estado.SIN_DOCUMENTOS)
         total   = len(self.trabajos)
-        logger.info(
-            "COLA COMPLETADA — Total: %d | OK: %d | Error: %d | Sin documentos: %d",
-            total, ok, error, sin_doc
+        _log_csv(
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            _USUARIO, "", "COLA_COMPLETADA", "",
+            f"total:{total} ok:{ok} error:{error} sin_doc:{sin_doc}",
         )
         notifier.notificar(
             "✅ Cola completada",
