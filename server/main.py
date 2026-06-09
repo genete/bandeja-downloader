@@ -51,8 +51,9 @@ class BandeJAApp(App):
     """
 
     BINDINGS = [
-        Binding("q", "quit",   "Salir"),
-        Binding("p", "pausar", "Pausar/Reanudar"),
+        Binding("q", "quit",       "Salir"),
+        Binding("p", "pausar",     "Pausar/Reanudar"),
+        Binding("n", "nuevo_lote", "Nuevo lote"),
     ]
 
     def __init__(self, config: dict) -> None:
@@ -92,6 +93,9 @@ class BandeJAApp(App):
         self.notify("PAUSADO ⏸" if self.pausado else "ACTIVO ▶")
         self._actualizar_pie()
 
+    def action_nuevo_lote(self) -> None:
+        self.exit("nuevo_lote")
+
     # ── Playwright en hilo separado ──────────────────────────────────────────
 
     def _iniciar_playwright(self) -> None:
@@ -118,6 +122,11 @@ class BandeJAApp(App):
                     )
 
             asyncio.run(_async())
+            self.call_from_thread(
+                lambda: self.notify(
+                    "✅ Cola completada — [n] nuevo lote  [q] salir", timeout=0
+                )
+            )
 
         hilo = threading.Thread(target=run, daemon=True, name="playwright")
         hilo.start()
@@ -158,10 +167,13 @@ class BandeJAApp(App):
 # ── Entrada principal ────────────────────────────────────────────────────────
 
 def main() -> None:
-    config = mostrar_formulario()
-    if config is None:
-        return
-    BandeJAApp(config).run()
+    while True:
+        config = mostrar_formulario()
+        if config is None:
+            break
+        resultado = BandeJAApp(config).run()
+        if resultado != "nuevo_lote":
+            break
 
 
 if __name__ == "__main__":
