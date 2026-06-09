@@ -133,8 +133,10 @@ class BandejaClient:
                     )
                     _log(f"Sin documentos: {codigo}")
                 elif nombre_zip:
-                    cola.completar(codigo, Estado.OK, zip_filename=nombre_zip)
-                    _log(f"OK {codigo} → {nombre_zip}")
+                    det = "✓ finalizado" if finalizar else ""
+                    cola.completar(codigo, Estado.OK, zip_filename=nombre_zip, detalle=det)
+                    sufijo = " + finalizado" if finalizar else ""
+                    _log(f"OK {codigo} → {nombre_zip}{sufijo}")
                 else:  # "" — sin acción o finalizar sin descarga
                     detalle = "Sin acción" if not descargar and not finalizar else "Finalizado"
                     cola.completar(codigo, Estado.OK, detalle=detalle)

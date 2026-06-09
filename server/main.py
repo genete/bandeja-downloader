@@ -136,7 +136,10 @@ class BandeJAApp(App):
 
         for t in self.cola.trabajos:
             hora    = t.timestamp.strftime("%H:%M:%S") if t.timestamp else ""
-            detalle = t.zip_filename if t.zip_filename else t.detalle[:60]
+            if t.zip_filename:
+                detalle = f"{t.zip_filename}  {t.detalle}" if t.detalle else t.zip_filename
+            else:
+                detalle = t.detalle[:60]
             tabla.add_row(
                 ICONOS[t.estado],
                 t.codigo,
@@ -157,8 +160,14 @@ class BandeJAApp(App):
         self._actualizar_pie()
 
     def _actualizar_pie(self) -> None:
+        acciones = []
+        if self.config.get("descargar", True):
+            acciones.append("Descargar")
+        if self.config.get("finalizar", True):
+            acciones.append("Finalizar")
+        modo  = " + ".join(acciones) if acciones else "Sin acción"
         pausa = "  ⏸ PAUSADO" if self.pausado else ""
-        self.query_one("#pie", Static).update(f"BandeJA Downloader — Playwright{pausa}")
+        self.query_one("#pie", Static).update(f"BandeJA Downloader  [{modo}]{pausa}")
 
 
 # ── Entrada principal ────────────────────────────────────────────────────────
