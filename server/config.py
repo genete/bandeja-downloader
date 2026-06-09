@@ -8,13 +8,8 @@ if getattr(sys, 'frozen', False):
 else:
     BASE_DIR = Path(__file__).parent.parent
 
-# Directorios
 DOWNLOADS_DIR = BASE_DIR / "downloads"
 DATA_DIR      = BASE_DIR / "data"
+PENDING_CSV   = DATA_DIR / "pending.csv"
 
-# Fichero de entrada
-PENDING_CSV = DATA_DIR / "pending.csv"
-
-# Servidor
-SERVER_HOST = "localhost"
-SERVER_PORT = 8000
+BANDEJA_URL = "https://extranet.chie.junta-andalucia.es/bandeja/"
